@@ -11,12 +11,12 @@ interface WaitingRoomProps {
 }
 
 export function WaitingRoom({ connectionStatus, connectedPlayers, error, inviteUrl, isHost, roomCode }: WaitingRoomProps) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'code' | 'link'>()
 
-  async function copyInvite() {
-    await navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1800)
+  async function copyText(value: string, type: 'code' | 'link') {
+    await navigator.clipboard.writeText(value)
+    setCopied(type)
+    window.setTimeout(() => setCopied(undefined), 1800)
   }
 
   return (
@@ -29,9 +29,23 @@ export function WaitingRoom({ connectionStatus, connectedPlayers, error, inviteU
         <p>{isHost ? 'Send this link to one friend. The five-minute match starts automatically when they connect.' : 'Connecting to the host. Keep this tab open.'}</p>
 
         {isHost && (
-          <div className="invite-box">
-            <input readOnly value={inviteUrl} aria-label="Friend invite URL" />
-            <button type="button" onClick={copyInvite}>{copied ? 'COPIED' : 'COPY LINK'}</button>
+          <div className="invite-options">
+            <div className="room-code-box">
+              <span>ROOM CODE</span>
+              <strong>{roomCode}</strong>
+              <button type="button" onClick={() => copyText(roomCode, 'code')}>
+                {copied === 'code' ? 'COPIED' : 'COPY CODE'}
+              </button>
+            </div>
+            <div className="invite-box">
+              <label htmlFor="friend-invite-url">FULL INVITE URL</label>
+              <div>
+                <input id="friend-invite-url" readOnly value={inviteUrl} aria-label="Friend invite URL" />
+                <button type="button" onClick={() => copyText(inviteUrl, 'link')}>
+                  {copied === 'link' ? 'COPIED' : 'COPY LINK'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

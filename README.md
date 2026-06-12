@@ -54,7 +54,7 @@ npm run preview
 - Supabase Presence shows whether both devices are connected.
 - The room creator is the authority for timers, random letters, claim timestamps, validation, tie-breaking, scoring, and rematches.
 - The invited player controls only Player 2; the host controls only Player 1.
-- Room codes use a random 10-character URL-safe alphabet.
+- Room codes use a short random 6-character URL-safe alphabet. The waiting room shows both the code and the full copyable invite URL.
 - Rooms are ephemeral. If the host closes the tab, the room ends.
 - No gameplay data is written to a database.
 
@@ -68,8 +68,8 @@ This architecture is appropriate for friendly no-login matches. Competitive rank
 4. Only the displayed letter is awarded.
 5. Each successful claim locks the displayed letter's position in that player's claim word.
 6. A player cannot reuse the same position for that letter or repeat an exact claim word.
-7. The first player to submit a valid five-letter word built from their collected tiles wins.
-8. After five minutes, the engine finds each board's best available word and applies unused-letter penalties.
+7. The first player to submit a valid five-letter word built from their collected tiles wins. The opponent receives no automatic word credit and loses the value of every unsubmitted tile.
+8. After five minutes without an instant winner, the engine finds each board's best available word and applies unused-letter penalties.
 
 ## Verification
 

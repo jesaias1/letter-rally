@@ -6,11 +6,11 @@ import { createRoomCode, normalizeRoomCode } from '../multiplayer/roomCode'
 describe('online rooms', () => {
   it('creates invite-safe room codes', () => {
     const roomCode = createRoomCode()
-    expect(roomCode).toMatch(/^[A-HJ-NP-Z2-9]{10}$/)
+    expect(roomCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/)
   })
 
   it('normalizes room codes from invite URLs', () => {
-    expect(normalizeRoomCode('ab-cd 234')).toBe('ABCD234')
+    expect(normalizeRoomCode('ab-cd 234')).toBe('ABCD23')
   })
 
   it('runs online matches for five minutes', () => {

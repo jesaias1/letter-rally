@@ -245,9 +245,8 @@ export function submitFinalWord(
 
   const opponentId: PlayerId = playerId === 'player1' ? 'player2' : 'player1'
   const opponent = state.players[opponentId]
-  const opponentBestWord = findBestFinalWord(opponent.board)
   const score = calculateScore(player.board, result.normalizedWord).total
-  const opponentScore = calculateScore(opponent.board, opponentBestWord).total
+  const opponentScore = calculateScore(opponent.board).total
   const message = `${player.name} wins with ${result.normalizedWord}!`
   return {
     result,
@@ -268,7 +267,7 @@ export function submitFinalWord(
         },
         [opponentId]: {
           ...opponent,
-          bestWord: opponentBestWord,
+          bestWord: undefined,
           score: opponentScore,
         },
       },

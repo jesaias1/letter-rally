@@ -6,8 +6,10 @@ import {
   revealNextLetter,
   startRound,
   submitClaim,
+  submitFinalWord,
 } from '../game/gameEngine'
 import type { ClaimAttempt } from '../game/types'
+import { boardFrom } from './helpers'
 
 function claim(overrides: Partial<ClaimAttempt>): ClaimAttempt {
   return {
@@ -55,5 +57,19 @@ describe('claim resolution', () => {
     const resolved = resolveCurrentLetter(submitted.state, 8_000)
     expect(resolved.players.player1.board.map((tile) => tile.letter)).toEqual([letter])
     expect(resolved.players.player1.positionLocks[letter]).toEqual([1])
+  })
+
+  it('penalizes every opponent tile after an instant final-word win', () => {
+    const state = startRound(createGame('Winner', 'Opponent'), 0)
+    state.status = 'playing'
+    state.players.player1.board = boardFrom('SHIRE')
+    state.players.player2.board = boardFrom('CRFEEAGD')
+
+    const finished = submitFinalWord(state, 'player1', 'SHIRE', 4_000).state
+
+    expect(finished.winner).toBe('player1')
+    expect(finished.players.player1.score).toBe(9)
+    expect(finished.players.player2.bestWord).toBeUndefined()
+    expect(finished.players.player2.score).toBe(-15)
   })
 })

@@ -1,6 +1,6 @@
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-export function createRoomCode(length = 10): string {
+export function createRoomCode(length = 6): string {
   const bytes = crypto.getRandomValues(new Uint8Array(length))
   return [...bytes]
     .map((value) => ROOM_ALPHABET[value % ROOM_ALPHABET.length])
@@ -11,7 +11,7 @@ export function normalizeRoomCode(value: string | null | undefined): string {
   return (value ?? '')
     .toUpperCase()
     .replace(/[^A-Z2-9]/g, '')
-    .slice(0, 16)
+    .slice(0, 6)
 }
 
 export function getRoomCodeFromUrl(): string {
