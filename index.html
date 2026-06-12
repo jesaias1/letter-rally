@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#090b0f" />
+    <meta name="description" content="Letter Rally, a fast competitive 1v1 word game." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Letter Rally</title>
+    <style>
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+        color: #f8f9fb;
+        background: #090b0f;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+
+      .launch-fallback {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: radial-gradient(circle, rgba(201, 255, 61, 0.1), transparent 35%);
+      }
+
+      .launch-fallback__card {
+        width: min(520px, 100%);
+        padding: 40px;
+        box-sizing: border-box;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        background: #11141a;
+        text-align: center;
+      }
+
+      .launch-fallback h1 {
+        margin: 0 0 12px;
+        font-size: clamp(42px, 10vw, 72px);
+        letter-spacing: -0.07em;
+      }
+
+      .launch-fallback p {
+        margin: 8px 0;
+        color: #9299a4;
+        line-height: 1.6;
+      }
+
+      .launch-fallback code {
+        display: block;
+        margin-top: 20px;
+        padding: 14px;
+        border-radius: 9px;
+        color: #c9ff3d;
+        background: #080a0d;
+        font: 700 14px/1.4 ui-monospace, Consolas, monospace;
+      }
+
+      .launch-fallback__file-help {
+        display: none;
+      }
+
+      html[data-file-mode='true'] .launch-fallback__loading {
+        display: none;
+      }
+
+      html[data-file-mode='true'] .launch-fallback__file-help {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <main class="launch-fallback">
+        <section class="launch-fallback__card">
+          <h1>Letter Rally</h1>
+          <p class="launch-fallback__loading">Loading the rally...</p>
+          <div class="launch-fallback__file-help">
+            <p>This Vite app cannot run by opening <strong>index.html</strong> directly.</p>
+            <p>Double-click <strong>Start Letter Rally.cmd</strong>, or run:</p>
+            <code>npm install<br />npm run dev</code>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script>
+      if (window.location.protocol === 'file:') {
+        document.documentElement.dataset.fileMode = 'true'
+      }
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
