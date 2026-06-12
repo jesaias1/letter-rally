@@ -71,12 +71,14 @@ export function App() {
 
       <section className="duel-grid">
         <PlayerPanel
+          key={`player1-${game.roundStartedAt}`}
           side="left"
           player={game.players.player1}
           currentLetter={game.currentLetter}
           gameStatus={game.status}
           feedback={multiplayer.feedback.player1}
           isLocalPlayer={localPlayerId === 'player1'}
+          wins={multiplayer.matchWins.player1}
           onClaim={multiplayer.submitClaim}
           onFinalWord={multiplayer.submitFinalWord}
         />
@@ -91,12 +93,14 @@ export function App() {
         />
 
         <PlayerPanel
+          key={`player2-${game.roundStartedAt}`}
           side="right"
           player={game.players.player2}
           currentLetter={game.currentLetter}
           gameStatus={game.status}
           feedback={multiplayer.feedback.player2}
           isLocalPlayer={localPlayerId === 'player2'}
+          wins={multiplayer.matchWins.player2}
           onClaim={multiplayer.submitClaim}
           onFinalWord={multiplayer.submitFinalWord}
         />
@@ -123,6 +127,7 @@ export function App() {
           game={game}
           playerIds={PLAYER_IDS}
           canPlayAgain={multiplayer.session.role === 'host'}
+          matchWins={multiplayer.matchWins}
           onPlayAgain={multiplayer.playAgain}
         />
       )}

@@ -54,6 +54,8 @@ npm run preview
 - Supabase Presence shows whether both devices are connected.
 - The room creator is the authority for timers, random letters, claim timestamps, validation, tie-breaking, scoring, and rematches.
 - The invited player controls only Player 2; the host controls only Player 1.
+- Match wins are tracked and synchronized for the same two players across rematches in the room.
+- The active player's claim field is focused automatically for each new letter, and submitted guesses clear immediately.
 - Room codes use a short random 6-character URL-safe alphabet. The waiting room shows both the code and the full copyable invite URL.
 - Rooms are ephemeral. If the host closes the tab, the room ends.
 - No gameplay data is written to a database.

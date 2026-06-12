@@ -9,6 +9,7 @@ import {
 } from '../game/gameEngine'
 import type { GameState, PlayerId } from '../game/types'
 import { createInviteUrl, createRoomCode, getRoomCodeFromUrl } from './roomCode'
+import { INITIAL_MATCH_WINS, recordMatchWin } from './matchWins'
 import { supabase, supabaseConfigurationError } from './supabase'
 import type {
   ActionPayload,
@@ -39,6 +40,7 @@ export function useMultiplayerGame() {
   const [connectedPlayers, setConnectedPlayers] = useState(0)
   const [localPlayerId, setLocalPlayerId] = useState<PlayerId | undefined>()
   const [feedback, setFeedback] = useState(INITIAL_FEEDBACK)
+  const [matchWins, setMatchWins] = useState(INITIAL_MATCH_WINS)
   const [roomError, setRoomError] = useState<string>()
 
   const channelRef = useRef<RealtimeChannel | undefined>(undefined)
@@ -46,6 +48,7 @@ export function useMultiplayerGame() {
   const revisionRef = useRef(0)
   const guestClientIdRef = useRef<string | undefined>(undefined)
   const sessionRef = useRef<RoomSession | null>(null)
+  const matchWinsRef = useRef(INITIAL_MATCH_WINS)
 
   const invitedRoomCode = getRoomCodeFromUrl()
   const inviteUrl = session ? createInviteUrl(session.roomCode) : undefined
@@ -56,10 +59,11 @@ export function useMultiplayerGame() {
   }, [])
 
   const publishState = useCallback(
-    (nextGame: GameState) => {
+    (nextGame: GameState, nextMatchWins = matchWinsRef.current) => {
       revisionRef.current += 1
       void sendBroadcast('state', {
         game: nextGame,
+        matchWins: nextMatchWins,
         revision: revisionRef.current,
         hostId: sessionRef.current?.clientId ?? '',
       } satisfies StatePayload)
@@ -69,9 +73,15 @@ export function useMultiplayerGame() {
 
   const commitAuthoritativeGame = useCallback(
     (nextGame: GameState) => {
+      let nextMatchWins = matchWinsRef.current
+      if (gameRef.current.status !== 'roundOver' && nextGame.status === 'roundOver') {
+        nextMatchWins = recordMatchWin(nextMatchWins, nextGame.winner)
+        matchWinsRef.current = nextMatchWins
+        setMatchWins(nextMatchWins)
+      }
       gameRef.current = nextGame
       setGame(nextGame)
-      publishState(nextGame)
+      publishState(nextGame, nextMatchWins)
     },
     [publishState],
   )
@@ -116,9 +126,7 @@ export function useMultiplayerGame() {
             : submission.attempt.reason ?? 'Claim rejected.',
           tone: submission.attempt.valid ? 'success' : 'error',
         }
-        gameRef.current = submission.state
-        setGame(submission.state)
-        publishState(submission.state)
+        commitAuthoritativeGame(submission.state)
         returnActionFeedback(payload.clientId, payload.playerId, nextFeedback)
         return
       }
@@ -136,9 +144,7 @@ export function useMultiplayerGame() {
             : submission.result.reason ?? 'Final word rejected.',
           tone: submission.result.valid ? 'success' : 'error',
         }
-        gameRef.current = submission.state
-        setGame(submission.state)
-        publishState(submission.state)
+        commitAuthoritativeGame(submission.state)
         returnActionFeedback(payload.clientId, payload.playerId, nextFeedback)
         return
       }
@@ -152,7 +158,7 @@ export function useMultiplayerGame() {
         commitAuthoritativeGame(restarted)
       }
     },
-    [commitAuthoritativeGame, publishState, returnActionFeedback],
+    [commitAuthoritativeGame, returnActionFeedback],
   )
 
   useEffect(() => {
@@ -214,7 +220,9 @@ export function useMultiplayerGame() {
         if (session.role === 'host' || payload.revision <= revisionRef.current) return
         revisionRef.current = payload.revision
         gameRef.current = payload.game
+        matchWinsRef.current = payload.matchWins
         setGame(payload.game)
+        setMatchWins(payload.matchWins)
       })
       .on('broadcast', { event: 'action' }, ({ payload }: BroadcastMessage<ActionPayload>) => {
         processAuthoritativeAction(payload)
@@ -300,6 +308,8 @@ export function useMultiplayerGame() {
     setRoomError(undefined)
     setLocalPlayerId('player1')
     gameRef.current = createGame(nextSession.playerName, 'Waiting for rival')
+    matchWinsRef.current = INITIAL_MATCH_WINS
+    setMatchWins(INITIAL_MATCH_WINS)
     setGame(gameRef.current)
     setSession(nextSession)
   }
@@ -354,6 +364,7 @@ export function useMultiplayerGame() {
     connectedPlayers,
     localPlayerId,
     feedback,
+    matchWins,
     roomError,
     createRoom,
     joinRoom,

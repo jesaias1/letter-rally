@@ -1,11 +1,13 @@
 import { calculateScore } from '../game/scoring'
 import type { GameState, PlayerId } from '../game/types'
+import type { MatchWins } from '../multiplayer/types'
 import { LetterTile } from './LetterTile'
 
 interface RoundOverModalProps {
   game: GameState
   playerIds: PlayerId[]
   canPlayAgain: boolean
+  matchWins: MatchWins
   onPlayAgain: () => void
 }
 
@@ -13,6 +15,7 @@ export function RoundOverModal({
   game,
   playerIds,
   canPlayAgain,
+  matchWins,
   onPlayAgain,
 }: RoundOverModalProps) {
   const title = game.winner ? `${game.players[game.winner].name} wins` : 'Dead heat'
@@ -29,6 +32,11 @@ export function RoundOverModal({
         <p className="eyebrow">RALLY COMPLETE</p>
         <h2 id="result-title">{title}</h2>
         <p className="result-modal__message">{game.resultMessage}</p>
+        <div className="series-score" aria-label="Match wins">
+          <span>{game.players.player1.name}</span>
+          <strong>{matchWins.player1} - {matchWins.player2}</strong>
+          <span>{game.players.player2.name}</span>
+        </div>
 
         {game.winningWord && (
           <div className="winning-word" aria-label={`Winning word ${game.winningWord}`}>

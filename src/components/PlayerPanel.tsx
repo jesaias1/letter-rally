@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculateScore } from '../game/scoring'
 import type { CurrentLetterState, GameState, PlayerState } from '../game/types'
 import { LetterTile } from './LetterTile'
@@ -16,13 +16,15 @@ interface PlayerPanelProps {
   gameStatus: GameState['status']
   feedback: PlayerFeedback
   isLocalPlayer: boolean
+  wins: number
   onClaim: (word: string) => void
   onFinalWord: (word: string) => void
 }
 
-export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback, isLocalPlayer, onClaim, onFinalWord }: PlayerPanelProps) {
+export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback, isLocalPlayer, wins, onClaim, onFinalWord }: PlayerPanelProps) {
   const [claimDraft, setClaimDraft] = useState({ letterId: '', word: '' })
   const [finalWord, setFinalWord] = useState('')
+  const claimInputRef = useRef<HTMLInputElement>(null)
 
   const activeLetterId = currentLetter?.id ?? ''
   const claimWord = claimDraft.letterId === activeLetterId ? claimDraft.word : ''
@@ -33,21 +35,37 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
   const visibleFeedback = !feedback.letterId || feedback.letterId === currentLetter?.id ? feedback : { message: 'New letter. New chance.', tone: 'neutral' as const }
   const locks = Object.entries(player.positionLocks).sort(([a], [b]) => a.localeCompare(b))
 
+  useEffect(() => {
+    if (!claimActive) return
+    const frame = window.requestAnimationFrame(() => claimInputRef.current?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeLetterId, claimActive])
+
   function submitClaimForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (claimWord.trim()) onClaim(claimWord)
+    if (!claimWord.trim()) return
+    const submittedWord = claimWord
+    setClaimDraft({ letterId: activeLetterId, word: '' })
+    onClaim(submittedWord)
+    window.requestAnimationFrame(() => claimInputRef.current?.focus())
   }
 
   function submitFinalForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (finalWord.trim()) onFinalWord(finalWord)
+    if (!finalWord.trim()) return
+    const submittedWord = finalWord
+    setFinalWord('')
+    onFinalWord(submittedWord)
   }
 
   return (
     <section className={`player-panel player-panel--${side}${isLocalPlayer ? ' player-panel--local' : ' player-panel--remote'}`}>
       <header className="player-header">
         <div className="player-identity"><span className="player-number">{player.id === 'player1' ? 'P1' : 'P2'}</span><div><p>{isLocalPlayer ? 'YOU' : 'RIVAL'}</p><h2>{player.name}</h2></div></div>
-        <div className="risk-score" title="Current score if no final word can be formed"><span>RISK</span><strong>{riskScore > 0 ? `+${riskScore}` : riskScore}</strong></div>
+        <div className="player-stats">
+          <div className="match-wins"><span>WINS</span><strong>{wins}</strong></div>
+          <div className="risk-score" title="Current score if no final word can be formed"><span>RISK</span><strong>{riskScore > 0 ? `+${riskScore}` : riskScore}</strong></div>
+        </div>
       </header>
       <div className="panel-section board-section">
         <div className="section-heading"><span>YOUR LETTERS</span><strong>{player.board.length}</strong></div>
@@ -56,7 +74,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
       <form className="claim-form" onSubmit={submitClaimForm}>
         <label htmlFor={`${player.id}-claim`}>CLAIM {currentLetter?.letter ? `“${currentLetter.letter}”` : 'LETTER'}</label>
         <div className="input-action">
-          <input id={`${player.id}-claim`} autoComplete="off" disabled={!claimActive} maxLength={24} placeholder={hasValidClaim ? 'CLAIM LOCKED' : 'TYPE A 4+ LETTER WORD'} value={claimWord} onChange={(event) => setClaimDraft({ letterId: activeLetterId, word: event.target.value.toUpperCase() })} />
+          <input ref={claimInputRef} id={`${player.id}-claim`} autoComplete="off" disabled={!claimActive} maxLength={24} placeholder={hasValidClaim ? 'CLAIM LOCKED' : 'TYPE A 4+ LETTER WORD'} value={claimWord} onChange={(event) => setClaimDraft({ letterId: activeLetterId, word: event.target.value.toUpperCase() })} />
           <button type="submit" disabled={!claimActive || !claimWord.trim()}>LOCK</button>
         </div>
         <p className={`form-feedback form-feedback--${visibleFeedback.tone}`}><span />{visibleFeedback.message}</p>

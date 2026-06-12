@@ -15,6 +15,8 @@ export interface PlayerFeedback {
   tone: 'neutral' | 'success' | 'error'
 }
 
+export type MatchWins = Record<PlayerId, number>
+
 export type PlayerAction =
   | { kind: 'claim'; word: string }
   | { kind: 'finalWord'; word: string }
@@ -22,6 +24,7 @@ export type PlayerAction =
 
 export interface StatePayload {
   game: GameState
+  matchWins: MatchWins
   revision: number
   hostId: string
 }

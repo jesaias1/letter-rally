@@ -32,6 +32,11 @@
 .player-identity h2 { max-width: 190px; overflow: hidden; margin: 3px 0 0; color: var(--white); font-size: clamp(18px,2vw,23px); line-height: 1.1; letter-spacing: -.045em; text-overflow: ellipsis; white-space: nowrap; }
 .risk-score { min-width: 54px; text-align: right; }
 .risk-score strong { color: var(--danger); font-size: 19px; font-variant-numeric: tabular-nums; }
+.player-stats { display: flex; align-items: center; gap: 15px; }
+.match-wins { min-width: 38px; text-align: center; }
+.match-wins span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .16em; }
+.match-wins strong { color: var(--lime); font-size: 22px; font-variant-numeric: tabular-nums; }
+.player-panel--right .match-wins strong { color: #bba8ff; }
 .panel-section { margin-top: 25px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .15em; }
 .section-heading strong { color: var(--soft); }
@@ -156,6 +161,8 @@
 .result-modal { width: min(720px,100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: clamp(28px,5vw,48px); border: 1px solid rgba(201,255,61,.18); border-radius: 22px; background: radial-gradient(circle at 50% 0,rgba(201,255,61,.08),transparent 35%),#11141a; box-shadow: 0 40px 100px rgba(0,0,0,.55); text-align: center; animation: modal-in .35s cubic-bezier(.16,.9,.24,1.1) both; }
 .result-modal h2 { margin: 8px 0 0; color: var(--white); font-size: clamp(38px,7vw,65px); letter-spacing: -.07em; text-transform: uppercase; }
 .result-modal__message { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.series-score { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 18px auto 0; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.series-score strong { color: var(--white); font-size: 22px; letter-spacing: -.03em; }
 .winning-word { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; margin: 28px 0; }
 .winning-word span { display: grid; place-items: center; width: 48px; height: 55px; border-radius: 9px; color: #11150a; background: var(--lime); font-size: 25px; font-weight: 950; box-shadow: inset 0 -3px 0 rgba(0,0,0,.15); }
 .scorecards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 26px 0; text-align: left; }
