@@ -18,6 +18,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
 
 Legacy projects may use the browser-safe `anon` key instead. Never place a secret key or `service_role` key in this frontend.
 
+The production publishable key is included in `.env.production` because Supabase publishable keys are public browser configuration. Local development can still override it with `.env.local`.
+
 In **Supabase Dashboard → Realtime Settings**, keep **Allow public access** enabled. Letter Rally uses public Broadcast and Presence channels, so no database tables or SQL migrations are required for this MVP.
 
 Restart Vite after changing `.env.local`.
