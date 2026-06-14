@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculateScore } from '../game/scoring'
+import { arrangeTiles, shuffleTiles } from '../game/tileArrangement'
 import type { CurrentLetterState, GameState, PlayerState } from '../game/types'
 import { LetterTile } from './LetterTile'
 
@@ -24,6 +25,7 @@ interface PlayerPanelProps {
 export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback, isLocalPlayer, wins, onClaim, onFinalWord }: PlayerPanelProps) {
   const [claimDraft, setClaimDraft] = useState({ letterId: '', word: '' })
   const [finalWord, setFinalWord] = useState('')
+  const [tileOrder, setTileOrder] = useState<string[]>([])
   const claimInputRef = useRef<HTMLInputElement>(null)
 
   const activeLetterId = currentLetter?.id ?? ''
@@ -34,6 +36,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
   const riskScore = calculateScore(player.board).total
   const visibleFeedback = !feedback.letterId || feedback.letterId === currentLetter?.id ? feedback : { message: 'New letter. New chance.', tone: 'neutral' as const }
   const locks = Object.entries(player.positionLocks).sort(([a], [b]) => a.localeCompare(b))
+  const displayedBoard = arrangeTiles(player.board, tileOrder)
 
   useEffect(() => {
     if (!claimActive) return
@@ -58,6 +61,11 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
     onFinalWord(submittedWord)
   }
 
+  function randomizeBoard() {
+    setTileOrder(shuffleTiles(displayedBoard).map((tile) => tile.id))
+    if (claimActive) window.requestAnimationFrame(() => claimInputRef.current?.focus())
+  }
+
   return (
     <section className={`player-panel player-panel--${side}${isLocalPlayer ? ' player-panel--local' : ' player-panel--remote'}`}>
       <header className="player-header">
@@ -69,7 +77,17 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
       </header>
       <div className="panel-section board-section">
         <div className="section-heading"><span>YOUR LETTERS</span><strong>{player.board.length}</strong></div>
-        <div className="letter-board">{player.board.length ? player.board.map((tile) => <LetterTile key={tile.id} tile={tile} side={side} />) : <p className="empty-board">Claim letters to build your finisher.</p>}</div>
+        <div className="letter-board">{player.board.length ? displayedBoard.map((tile) => <LetterTile key={tile.id} tile={tile} side={side} />) : <p className="empty-board">Claim letters to build your finisher.</p>}</div>
+        {isLocalPlayer && (
+          <button
+            className="randomize-button"
+            type="button"
+            disabled={player.board.length < 2}
+            onClick={randomizeBoard}
+          >
+            RANDOMIZE LETTERS <span aria-hidden="true">↻</span>
+          </button>
+        )}
       </div>
       <form className="claim-form" onSubmit={submitClaimForm}>
         <label htmlFor={`${player.id}-claim`}>CLAIM {currentLetter?.letter ? `“${currentLetter.letter}”` : 'LETTER'}</label>
