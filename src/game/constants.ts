@@ -58,8 +58,8 @@ export const LETTER_WEIGHTS: Record<string, number> = {
   W: 1,
   Y: 1,
   K: 1,
-  J: 1,
-  X: 1,
-  Q: 1,
-  Z: 1,
+  J: 0.35,
+  X: 0.18,
+  Q: 0.12,
+  Z: 0.1,
 }

@@ -8,8 +8,8 @@ import {
   submitFinalWord,
 } from '../game/gameEngine'
 import type { GameState, PlayerId } from '../game/types'
-import { createInviteUrl, createRoomCode, getRoomCodeFromUrl } from './roomCode'
-import { INITIAL_MATCH_WINS, recordMatchWin } from './matchWins'
+import { createSeries, recordSeriesRound, type SeriesLength, type SeriesState } from '../game/series'
+import { createInviteUrl, createRoomCode, getRoomCodeFromUrl, normalizeRoomCode } from './roomCode'
 import { supabase, supabaseConfigurationError } from './supabase'
 import type {
   ActionPayload,
@@ -17,7 +17,6 @@ import type {
   AssignmentPayload,
   ConnectionStatus,
   JoinRequestPayload,
-  MatchWins,
   PlayerAction,
   PlayerFeedback,
   RoomSession,
@@ -36,7 +35,7 @@ interface BroadcastMessage<T> {
 interface StoredMultiplayerState {
   session: RoomSession
   game: GameState
-  matchWins: MatchWins
+  series: SeriesState
   localPlayerId?: PlayerId
   revision: number
 }
@@ -73,7 +72,7 @@ export function useMultiplayerGame() {
   const [connectedPlayers, setConnectedPlayers] = useState(0)
   const [localPlayerId, setLocalPlayerId] = useState<PlayerId | undefined>(restoredState?.localPlayerId)
   const [feedback, setFeedback] = useState(INITIAL_FEEDBACK)
-  const [matchWins, setMatchWins] = useState(restoredState?.matchWins ?? INITIAL_MATCH_WINS)
+  const [series, setSeries] = useState<SeriesState>(restoredState?.series ?? createSeries(3))
   const [roomError, setRoomError] = useState<string>()
 
   const channelRef = useRef<RealtimeChannel | undefined>(undefined)
@@ -81,7 +80,7 @@ export function useMultiplayerGame() {
   const revisionRef = useRef(restoredState?.revision ?? 0)
   const guestClientIdRef = useRef<string | undefined>(undefined)
   const sessionRef = useRef<RoomSession | null>(null)
-  const matchWinsRef = useRef(restoredState?.matchWins ?? INITIAL_MATCH_WINS)
+  const seriesRef = useRef(restoredState?.series ?? createSeries(3))
 
   const inviteUrl = session ? createInviteUrl(session.roomCode) : undefined
 
@@ -90,12 +89,12 @@ export function useMultiplayerGame() {
     const storedState: StoredMultiplayerState = {
       session,
       game,
-      matchWins,
+      series,
       localPlayerId,
       revision: revisionRef.current,
     }
     saveStoredState(storedState)
-  }, [game, localPlayerId, matchWins, session])
+  }, [game, localPlayerId, series, session])
 
   const sendBroadcast = useCallback(async (event: string, payload: object) => {
     if (!channelRef.current) return
@@ -103,11 +102,11 @@ export function useMultiplayerGame() {
   }, [])
 
   const publishState = useCallback(
-    (nextGame: GameState, nextMatchWins = matchWinsRef.current) => {
+    (nextGame: GameState, nextSeries = seriesRef.current) => {
       revisionRef.current += 1
       void sendBroadcast('state', {
         game: nextGame,
-        matchWins: nextMatchWins,
+        series: nextSeries,
         revision: revisionRef.current,
         hostId: sessionRef.current?.clientId ?? '',
       } satisfies StatePayload)
@@ -117,15 +116,15 @@ export function useMultiplayerGame() {
 
   const commitAuthoritativeGame = useCallback(
     (nextGame: GameState) => {
-      let nextMatchWins = matchWinsRef.current
+      let nextSeries = seriesRef.current
       if (gameRef.current.status !== 'roundOver' && nextGame.status === 'roundOver') {
-        nextMatchWins = recordMatchWin(nextMatchWins, nextGame.winner)
-        matchWinsRef.current = nextMatchWins
-        setMatchWins(nextMatchWins)
+        nextSeries = recordSeriesRound(nextSeries, nextGame)
+        seriesRef.current = nextSeries
+        setSeries(nextSeries)
       }
       gameRef.current = nextGame
       setGame(nextGame)
-      publishState(nextGame, nextMatchWins)
+      publishState(nextGame, nextSeries)
     },
     [publishState],
   )
@@ -194,6 +193,10 @@ export function useMultiplayerGame() {
       }
 
       if (payload.action.kind === 'playAgain' && payload.playerId === 'player1') {
+        if (seriesRef.current.complete) {
+          seriesRef.current = createSeries(seriesRef.current.roundsToPlay)
+          setSeries(seriesRef.current)
+        }
         const restarted = startRound(
           createGame(gameRef.current.players.player1.name, gameRef.current.players.player2.name),
           submittedAt,
@@ -268,9 +271,9 @@ export function useMultiplayerGame() {
         if (session.role === 'host' || payload.revision <= revisionRef.current) return
         revisionRef.current = payload.revision
         gameRef.current = payload.game
-        matchWinsRef.current = payload.matchWins
+        seriesRef.current = payload.series
         setGame(payload.game)
-        setMatchWins(payload.matchWins)
+        setSeries(payload.series)
       })
       .on('broadcast', { event: 'action' }, ({ payload }: BroadcastMessage<ActionPayload>) => {
         processAuthoritativeAction(payload)
@@ -354,7 +357,7 @@ export function useMultiplayerGame() {
     return () => window.clearInterval(timer)
   }, [commitAuthoritativeGame])
 
-  function createRoom(playerName: string) {
+  function createRoom(playerName: string, roundsToPlay: SeriesLength) {
     const roomCode = createRoomCode()
     const nextSession: RoomSession = {
       roomCode,
@@ -370,27 +373,34 @@ export function useMultiplayerGame() {
     setRoomError(undefined)
     setLocalPlayerId('player1')
     gameRef.current = createGame(nextSession.playerName, 'Waiting for rival')
-    matchWinsRef.current = INITIAL_MATCH_WINS
-    setMatchWins(INITIAL_MATCH_WINS)
+    seriesRef.current = createSeries(roundsToPlay)
+    setSeries(seriesRef.current)
     setGame(gameRef.current)
     setSession(nextSession)
   }
 
-  function joinRoom(playerName: string) {
-    if (!invitedRoomCode) {
-      setRoomError('This invite link does not contain a room code.')
-      return
+  function joinRoom(playerName: string, enteredRoomCode?: string) {
+    const roomCode = normalizeRoomCode(enteredRoomCode || invitedRoomCode)
+    if (roomCode.length !== 6) {
+      setRoomError('Enter a six-character room code.')
+      return false
     }
+
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.searchParams.set('room', roomCode)
+    window.history.replaceState({}, '', url)
 
     setConnectionStatus('connecting')
     setRoomError(undefined)
     setLocalPlayerId('player2')
     setSession({
-      roomCode: invitedRoomCode,
+      roomCode,
       clientId: crypto.randomUUID(),
       playerName: playerName.trim() || 'Player Two',
       role: 'guest',
     })
+    return true
   }
 
   function sendAction(action: PlayerAction) {
@@ -426,7 +436,7 @@ export function useMultiplayerGame() {
     connectedPlayers,
     localPlayerId,
     feedback,
-    matchWins,
+    series,
     roomError,
     createRoom,
     joinRoom,

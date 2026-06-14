@@ -1,5 +1,6 @@
 import type { GameState, PlayerId } from '../game/types'
-import type { MatchWins, PlayerFeedback } from '../multiplayer/types'
+import type { SeriesState } from '../game/series'
+import type { PlayerFeedback } from '../multiplayer/types'
 import { Arena } from './Arena'
 import { GameLog } from './GameLog'
 import { PlayerPanel } from './PlayerPanel'
@@ -12,7 +13,7 @@ interface GameViewProps {
   now: number
   localPlayerId: PlayerId
   feedback: Record<PlayerId, PlayerFeedback>
-  matchWins: MatchWins
+  series: SeriesState
   modeLabel: string
   canPlayAgain: boolean
   onClaim: (word: string) => void
@@ -21,7 +22,7 @@ interface GameViewProps {
   onLeave: () => void
 }
 
-export function GameView({ game, now, localPlayerId, feedback, matchWins, modeLabel, canPlayAgain, onClaim, onFinalWord, onPlayAgain, onLeave }: GameViewProps) {
+export function GameView({ game, now, localPlayerId, feedback, series, modeLabel, canPlayAgain, onClaim, onFinalWord, onPlayAgain, onLeave }: GameViewProps) {
   const roundRemainingMs = Math.max(0, (game.roundEndsAt ?? now) - now)
   const countdown = game.status === 'countdown'
     ? Math.max(1, Math.ceil(((game.countdownEndsAt ?? now) - now) / 1_000))
@@ -41,13 +42,16 @@ export function GameView({ game, now, localPlayerId, feedback, matchWins, modeLa
             <strong>{formatTime(roundRemainingMs)}</strong>
           </div>
         </div>
-        <div className={`status-pill status-pill--${game.status}`}><span className="status-dot" />{statusLabel(game.status)}</div>
+        <div className="series-readout" key={series.roundsPlayed}>
+          <span>ROUND {Math.min(series.roundsPlayed + 1, series.roundsToPlay)} / {series.roundsToPlay}</span>
+          <strong>{formatSigned(series.totalScore.player1)} : {formatSigned(series.totalScore.player2)}</strong>
+        </div>
       </header>
 
       <section className="duel-grid">
-        <PlayerPanel key={`player1-${game.roundStartedAt}`} side="left" player={game.players.player1} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player1} isLocalPlayer={localPlayerId === 'player1'} wins={matchWins.player1} onClaim={onClaim} onFinalWord={onFinalWord} />
+        <PlayerPanel key={`player1-${game.roundStartedAt}`} side="left" player={game.players.player1} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player1} isLocalPlayer={localPlayerId === 'player1'} wins={series.roundWins.player1} onClaim={onClaim} onFinalWord={onFinalWord} />
         <Arena countdown={countdown} currentLetter={game.currentLetter} gameStatus={game.status} now={now} resultMessage={game.resultMessage} players={game.players} />
-        <PlayerPanel key={`player2-${game.roundStartedAt}`} side="right" player={game.players.player2} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player2} isLocalPlayer={localPlayerId === 'player2'} wins={matchWins.player2} onClaim={onClaim} onFinalWord={onFinalWord} />
+        <PlayerPanel key={`player2-${game.roundStartedAt}`} side="right" player={game.players.player2} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player2} isLocalPlayer={localPlayerId === 'player2'} wins={series.roundWins.player2} onClaim={onClaim} onFinalWord={onFinalWord} />
       </section>
 
       <section className="lower-deck">
@@ -57,20 +61,16 @@ export function GameView({ game, now, localPlayerId, feedback, matchWins, modeLa
         <GameLog entries={game.log} />
       </section>
 
-      {game.status === 'roundOver' && <RoundOverModal game={game} playerIds={PLAYER_IDS} canPlayAgain={canPlayAgain} matchWins={matchWins} onPlayAgain={onPlayAgain} onLeave={onLeave} />}
+      {game.status === 'roundOver' && <RoundOverModal game={game} playerIds={PLAYER_IDS} canPlayAgain={canPlayAgain} series={series} onPlayAgain={onPlayAgain} onLeave={onLeave} />}
     </main>
   )
+}
+
+function formatSigned(score: number): string {
+  return score > 0 ? `+${score}` : String(score)
 }
 
 function formatTime(milliseconds: number): string {
   const seconds = Math.ceil(milliseconds / 1_000)
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-}
-
-function statusLabel(status: GameState['status']): string {
-  if (status === 'countdown') return 'Get ready'
-  if (status === 'playing') return 'Letter live'
-  if (status === 'letterResolution') return 'Resolving'
-  if (status === 'roundOver') return 'Round over'
-  return 'Room open'
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { SeriesLength } from '../game/series'
 import type { ConnectionStatus } from '../multiplayer/types'
 
 interface WaitingRoomProps {
@@ -8,9 +9,10 @@ interface WaitingRoomProps {
   inviteUrl: string
   isHost: boolean
   roomCode: string
+  roundsToPlay: SeriesLength
 }
 
-export function WaitingRoom({ connectionStatus, connectedPlayers, error, inviteUrl, isHost, roomCode }: WaitingRoomProps) {
+export function WaitingRoom({ connectionStatus, connectedPlayers, error, inviteUrl, isHost, roomCode, roundsToPlay }: WaitingRoomProps) {
   const [copied, setCopied] = useState<'code' | 'link'>()
 
   async function copyText(value: string, type: 'code' | 'link') {
@@ -26,7 +28,7 @@ export function WaitingRoom({ connectionStatus, connectedPlayers, error, inviteU
         <span className="brand-mark brand-mark--large">LR</span>
         <p className="eyebrow">ROOM {roomCode}</p>
         <h1>{isHost ? 'Invite your rival' : 'Joining rally'}</h1>
-        <p>{isHost ? 'Send this link to one friend. The five-minute match starts automatically when they connect.' : 'Connecting to the host. Keep this tab open.'}</p>
+        <p>{isHost ? `Send the code or link to one friend. Your ${roundsToPlay}-round series starts automatically when they connect.` : 'Connecting to the host. Keep this tab open.'}</p>
 
         {isHost && (
           <div className="invite-options">

@@ -7,8 +7,8 @@ import {
   submitFinalWord,
 } from '../game/gameEngine'
 import type { GameState, PlayerId } from '../game/types'
-import { INITIAL_MATCH_WINS, recordMatchWin } from '../multiplayer/matchWins'
-import type { MatchWins, PlayerFeedback } from '../multiplayer/types'
+import { createSeries, recordSeriesRound, type SeriesLength, type SeriesState } from '../game/series'
+import type { PlayerFeedback } from '../multiplayer/types'
 import { BOT_SETTINGS, chooseBotClaimWord, chooseBotFinalWord, getBotReactionDelay, type BotDifficulty } from './bot'
 import {
   loadBotRecords,
@@ -25,6 +25,7 @@ const INITIAL_FEEDBACK: Record<PlayerId, PlayerFeedback> = {
 interface SinglePlayerSession {
   difficulty: BotDifficulty
   playerName: string
+  roundsToPlay: SeriesLength
 }
 
 export function useSinglePlayerGame() {
@@ -32,12 +33,12 @@ export function useSinglePlayerGame() {
   const [game, setGame] = useState<GameState>(() => createGame('Player One', 'Rally Bot'))
   const [now, setNow] = useState(() => Date.now())
   const [feedback, setFeedback] = useState(INITIAL_FEEDBACK)
-  const [matchWins, setMatchWins] = useState<MatchWins>(INITIAL_MATCH_WINS)
+  const [series, setSeries] = useState<SeriesState>(() => createSeries(3))
   const [botRecords, setBotRecords] = useState<BotRecords>(() => loadBotRecords())
 
   const sessionRef = useRef(session)
   const gameRef = useRef(game)
-  const matchWinsRef = useRef(matchWins)
+  const seriesRef = useRef(series)
   const finalAttemptBoardRef = useRef('')
   const plannedLetterRef = useRef('')
 
@@ -47,14 +48,14 @@ export function useSinglePlayerGame() {
     setGame(nextGame)
 
     if (previousGame.status !== 'roundOver' && nextGame.status === 'roundOver') {
-      const nextWins = recordMatchWin(matchWinsRef.current, nextGame.winner)
-      matchWinsRef.current = nextWins
-      setMatchWins(nextWins)
+      const nextSeries = recordSeriesRound(seriesRef.current, nextGame)
+      seriesRef.current = nextSeries
+      setSeries(nextSeries)
 
       const difficulty = sessionRef.current?.difficulty
-      if (difficulty) {
+      if (difficulty && nextSeries.complete) {
         setBotRecords((current) => {
-          const nextRecords = recordBotResult(current, difficulty, nextGame.winner)
+          const nextRecords = recordBotResult(current, difficulty, nextSeries.winner)
           saveBotRecords(nextRecords)
           return nextRecords
         })
@@ -132,14 +133,14 @@ export function useSinglePlayerGame() {
     return () => window.clearTimeout(timer)
   }, [commitGame, game.players.player2.board, session?.difficulty])
 
-  function startGame(playerName: string, difficulty: BotDifficulty) {
+  function startGame(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength) {
     const normalizedName = playerName.trim() || 'Player One'
-    const nextSession = { difficulty, playerName: normalizedName }
+    const nextSession = { difficulty, playerName: normalizedName, roundsToPlay }
     const nextGame = startRound(createGame(normalizedName, BOT_SETTINGS[difficulty].name), Date.now())
     finalAttemptBoardRef.current = ''
     plannedLetterRef.current = ''
-    matchWinsRef.current = INITIAL_MATCH_WINS
-    setMatchWins(INITIAL_MATCH_WINS)
+    seriesRef.current = createSeries(roundsToPlay)
+    setSeries(seriesRef.current)
     setFeedback(INITIAL_FEEDBACK)
     setSession(nextSession)
     sessionRef.current = nextSession
@@ -178,6 +179,10 @@ export function useSinglePlayerGame() {
 
   function playAgain() {
     if (!sessionRef.current) return
+    if (seriesRef.current.complete) {
+      seriesRef.current = createSeries(sessionRef.current.roundsToPlay)
+      setSeries(seriesRef.current)
+    }
     const restarted = startRound(
       createGame(sessionRef.current.playerName, BOT_SETTINGS[sessionRef.current.difficulty].name),
       Date.now(),
@@ -201,7 +206,7 @@ export function useSinglePlayerGame() {
     now,
     localPlayerId: 'player1' as const,
     feedback,
-    matchWins,
+    series,
     botRecords,
     startGame,
     submitClaim: submitPlayerClaim,

@@ -1,10 +1,17 @@
 import { LETTER_WEIGHTS } from './constants'
 
-const weightedLetters = Object.entries(LETTER_WEIGHTS).flatMap(([letter, weight]) =>
-  Array.from({ length: weight }, () => letter),
-)
+export function drawWeightedLetter(
+  previousLetter?: string,
+  random: () => number = Math.random,
+): string {
+  const choices = Object.entries(LETTER_WEIGHTS).filter(([letter]) => letter !== previousLetter)
+  const totalWeight = choices.reduce((total, [, weight]) => total + weight, 0)
+  let target = random() * totalWeight
 
-export function drawWeightedLetter(random: () => number = Math.random): string {
-  const index = Math.floor(random() * weightedLetters.length)
-  return weightedLetters[Math.min(index, weightedLetters.length - 1)]
+  for (const [letter, weight] of choices) {
+    target -= weight
+    if (target < 0) return letter
+  }
+
+  return choices[choices.length - 1][0]
 }

@@ -1,32 +1,36 @@
 import { calculateScore } from '../game/scoring'
+import type { SeriesState } from '../game/series'
 import type { GameState, PlayerId } from '../game/types'
-import type { MatchWins } from '../multiplayer/types'
 import { LetterTile } from './LetterTile'
 
 interface RoundOverModalProps {
   game: GameState
   playerIds: PlayerId[]
   canPlayAgain: boolean
-  matchWins: MatchWins
+  series: SeriesState
   onPlayAgain: () => void
   onLeave: () => void
 }
 
-export function RoundOverModal({ game, playerIds, canPlayAgain, matchWins, onPlayAgain, onLeave }: RoundOverModalProps) {
-  const title = game.winner ? `${game.players[game.winner].name} wins` : 'Dead heat'
+export function RoundOverModal({ game, playerIds, canPlayAgain, series, onPlayAgain, onLeave }: RoundOverModalProps) {
+  const roundTitle = game.winner ? `${game.players[game.winner].name} wins round` : 'Round drawn'
+  const title = series.complete
+    ? series.winner ? `${game.players[series.winner].name} wins series` : 'Series drawn'
+    : roundTitle
   const wordLabel = game.winReason === 'finalWord' ? 'Submitted word' : 'Best word'
 
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="result-modal" role="dialog" aria-modal="true" aria-labelledby="result-title">
-        <p className="eyebrow">RALLY COMPLETE</p>
+        <p className="eyebrow">{series.complete ? 'SERIES COMPLETE' : `ROUND ${series.roundsPlayed} OF ${series.roundsToPlay}`}</p>
         <h2 id="result-title">{title}</h2>
         <p className="result-modal__message">{game.resultMessage}</p>
-        <div className="series-score" aria-label="Match wins">
+        <div className="series-score" aria-label="Series totals">
           <span>{game.players.player1.name}</span>
-          <strong>{matchWins.player1} - {matchWins.player2}</strong>
+          <strong>{series.totalScore.player1} : {series.totalScore.player2}</strong>
           <span>{game.players.player2.name}</span>
         </div>
+        <p className="round-win-score">ROUND WINS {series.roundWins.player1} - {series.roundWins.player2}</p>
 
         {game.winningWord && <div className="winning-word" aria-label={`Winning word ${game.winningWord}`}>{[...game.winningWord].map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}</div>}
 
@@ -46,7 +50,7 @@ export function RoundOverModal({ game, playerIds, canPlayAgain, matchWins, onPla
         </div>
 
         <div className="result-actions">
-          {canPlayAgain ? <button className="primary-button" type="button" onClick={onPlayAgain} autoFocus>PLAY AGAIN <span aria-hidden="true">&#8635;</span></button> : <p className="result-waiting">Waiting for the host to start the rematch.</p>}
+          {canPlayAgain ? <button className="primary-button" type="button" onClick={onPlayAgain} autoFocus>{series.complete ? 'NEW SERIES' : 'NEXT ROUND'} <span aria-hidden="true">&#8635;</span></button> : <p className="result-waiting">Waiting for the host to start the next round.</p>}
           <button className="secondary-button" type="button" onClick={onLeave}>BACK TO MENU</button>
         </div>
       </section>

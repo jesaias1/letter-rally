@@ -1,4 +1,5 @@
 import type { GameState, PlayerId } from '../game/types'
+import type { SeriesState } from '../game/series'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -15,8 +16,6 @@ export interface PlayerFeedback {
   tone: 'neutral' | 'success' | 'error'
 }
 
-export type MatchWins = Record<PlayerId, number>
-
 export type PlayerAction =
   | { kind: 'claim'; word: string }
   | { kind: 'finalWord'; word: string }
@@ -24,7 +23,7 @@ export type PlayerAction =
 
 export interface StatePayload {
   game: GameState
-  matchWins: MatchWins
+  series: SeriesState
   revision: number
   hostId: string
 }

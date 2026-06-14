@@ -56,6 +56,9 @@ npm run preview
 - The invited player controls only Player 2; the host controls only Player 1.
 - Match wins are tracked and synchronized for the same two players across rematches in the room.
 - Solo mode uses the same rules against Easy, Medium, or Hard bots, with persistent win/loss/draw records for each difficulty.
+- Players choose a fixed 3, 4, or 5-round series. Round scores, including unused-letter penalties, accumulate and the highest total score wins the series.
+- Friends can join with either the full invite URL or by entering the six-character room code on the home screen.
+- Consecutive letters never repeat, while Q, X, and Z use much lower draw weights and receive a special rare-letter animation.
 - The active player's claim field is focused automatically for each new letter, and submitted guesses clear immediately.
 - Each player can locally randomize their collected tile order without changing the authoritative board or scoring.
 - Room codes use a short random 6-character URL-safe alphabet. The waiting room shows both the code and the full copyable invite URL.

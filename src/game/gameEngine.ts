@@ -71,7 +71,7 @@ export function revealNextLetter(
   now: number,
   random: () => number = Math.random,
 ): GameState {
-  const letter = drawWeightedLetter(random)
+  const letter = drawWeightedLetter(state.currentLetter?.letter, random)
   return {
     ...state,
     status: 'playing',
