@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activatePowerUp,
   createGame,
   pickClaimWinner,
   resolveCurrentLetter,
@@ -71,5 +72,31 @@ describe('claim resolution', () => {
     expect(finished.players.player1.score).toBe(9)
     expect(finished.players.player2.bestWord).toBeUndefined()
     expect(finished.players.player2.score).toBe(-15)
+  })
+})
+
+describe('custom rules and power-ups', () => {
+  it('uses the configured claim window and round duration', () => {
+    const rules = { claimWindowSeconds: 8 as const, roundDurationMinutes: 1 as const, powerUpsEnabled: false }
+    const started = startRound(createGame('One', 'Two', rules), 1_000)
+    const revealed = revealNextLetter(started, 4_000, () => 0.5)
+
+    expect(started.roundEndsAt).toBe(64_000)
+    expect(revealed.currentLetter?.endsAt).toBe(12_000)
+  })
+
+  it('allows each power-up once per round', () => {
+    const rules = { claimWindowSeconds: 5 as const, roundDurationMinutes: 5 as const, powerUpsEnabled: true }
+    const state = startRound(createGame('One', 'Two', rules), 0)
+    state.players.player1.board = boardFrom('Q')
+
+    const shielded = activatePowerUp(state, 'player1', 'shield', 1_000)
+    const repeated = activatePowerUp(shielded.state, 'player1', 'shield', 1_100)
+    const swapped = activatePowerUp(shielded.state, 'player1', 'swap', 1_200, () => 0)
+
+    expect(shielded.result.valid).toBe(true)
+    expect(repeated.result.valid).toBe(false)
+    expect(swapped.result.valid).toBe(true)
+    expect(swapped.state.players.player1.board[0].letter).not.toBe('Q')
   })
 })

@@ -16,4 +16,17 @@ describe('scoring', () => {
     expect(result.unusedPenalty).toBe(10)
     expect(result.total).toBe(-1)
   })
+
+  it('removes a shielded unused tile from the penalty', () => {
+    const board = boardFrom('HEARTQ')
+    const result = calculateScore(board, 'HEART', board[5].id)
+    expect(result.unusedPenalty).toBe(0)
+    expect(result.total).toBe(9)
+  })
+
+  it('protects the unused copy when a shielded letter is duplicated', () => {
+    const board = boardFrom('HEARTT')
+    const result = calculateScore(board, 'HEART', board[5].id)
+    expect(result.unusedPenalty).toBe(0)
+  })
 })

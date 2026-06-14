@@ -1,0 +1,7 @@
+project_id = "okmrobbuljzeutrrdpxv"
+
+[functions.game-authority]
+verify_jwt = false
+
+[functions.dictionary-report]
+verify_jwt = false

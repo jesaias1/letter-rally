@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculateScore } from '../game/scoring'
 import { arrangeTiles, shuffleTiles } from '../game/tileArrangement'
-import type { CurrentLetterState, GameState, PlayerState } from '../game/types'
+import type { CurrentLetterState, GameState, PlayerState, PowerUpKind } from '../game/types'
 import { LetterTile } from './LetterTile'
 
 interface PlayerFeedback {
@@ -18,14 +18,18 @@ interface PlayerPanelProps {
   feedback: PlayerFeedback
   isLocalPlayer: boolean
   wins: number
+  powerUpsEnabled: boolean
   onClaim: (word: string) => void
   onFinalWord: (word: string) => void
+  onPowerUp: (powerUp: PowerUpKind) => void
+  onReportWord: (word: string, reason: string) => void
 }
 
-export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback, isLocalPlayer, wins, onClaim, onFinalWord }: PlayerPanelProps) {
+export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback, isLocalPlayer, wins, powerUpsEnabled, onClaim, onFinalWord, onPowerUp, onReportWord }: PlayerPanelProps) {
   const [claimDraft, setClaimDraft] = useState({ letterId: '', word: '' })
   const [finalWord, setFinalWord] = useState('')
   const [tileOrder, setTileOrder] = useState<string[]>([])
+  const [lastRejectedWord, setLastRejectedWord] = useState('')
   const claimInputRef = useRef<HTMLInputElement>(null)
 
   const activeLetterId = currentLetter?.id ?? ''
@@ -33,7 +37,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
 
   const hasValidClaim = Boolean(currentLetter?.claims.some((claim) => claim.playerId === player.id && claim.valid))
   const claimActive = isLocalPlayer && gameStatus === 'playing' && !hasValidClaim
-  const riskScore = calculateScore(player.board).total
+  const riskScore = calculateScore(player.board, undefined, player.powerUps.shieldedTileId).total
   const visibleFeedback = !feedback.letterId || feedback.letterId === currentLetter?.id ? feedback : { message: 'New letter. New chance.', tone: 'neutral' as const }
   const locks = Object.entries(player.positionLocks).sort(([a], [b]) => a.localeCompare(b))
   const displayedBoard = arrangeTiles(player.board, tileOrder)
@@ -50,6 +54,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
     const submittedWord = claimWord
     setClaimDraft({ letterId: activeLetterId, word: '' })
     onClaim(submittedWord)
+    setLastRejectedWord(submittedWord)
     window.requestAnimationFrame(() => claimInputRef.current?.focus())
   }
 
@@ -77,7 +82,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
       </header>
       <div className="panel-section board-section">
         <div className="section-heading"><span>YOUR LETTERS</span><strong>{player.board.length}</strong></div>
-        <div className="letter-board">{player.board.length ? displayedBoard.map((tile) => <LetterTile key={tile.id} tile={tile} side={side} />) : <p className="empty-board">Claim letters to build your finisher.</p>}</div>
+        <div className="letter-board">{player.board.length ? displayedBoard.map((tile) => <LetterTile key={tile.id} tile={tile} side={side} shielded={player.powerUps.shieldedTileId === tile.id} />) : <p className="empty-board">Claim letters to build your finisher.</p>}</div>
         {isLocalPlayer && (
           <button
             className="randomize-button"
@@ -88,6 +93,12 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
             RANDOMIZE LETTERS <span aria-hidden="true">↻</span>
           </button>
         )}
+        {isLocalPlayer && powerUpsEnabled && player.board.length > 0 && (
+          <div className="power-up-row">
+            <button type="button" disabled={!player.powerUps.swapAvailable} onClick={() => onPowerUp('swap')}>SWAP LAST</button>
+            <button type="button" disabled={!player.powerUps.shieldAvailable} onClick={() => onPowerUp('shield')}>SHIELD LAST</button>
+          </div>
+        )}
       </div>
       <form className="claim-form" onSubmit={submitClaimForm}>
         <label htmlFor={`${player.id}-claim`}>CLAIM {currentLetter?.letter ? `“${currentLetter.letter}”` : 'LETTER'}</label>
@@ -96,6 +107,7 @@ export function PlayerPanel({ side, player, currentLetter, gameStatus, feedback,
           <button type="submit" disabled={!claimActive || !claimWord.trim()}>LOCK</button>
         </div>
         <p className={`form-feedback form-feedback--${visibleFeedback.tone}`}><span />{visibleFeedback.message}</p>
+        {isLocalPlayer && visibleFeedback.tone === 'error' && lastRejectedWord && <button className="report-word-button" type="button" onClick={() => onReportWord(lastRejectedWord, visibleFeedback.message)}>REPORT {lastRejectedWord}</button>}
       </form>
       <form className="final-form" onSubmit={submitFinalForm}>
         <div><label htmlFor={`${player.id}-final`}>FINAL WORD</label><span>5+ LETTERS · USE YOUR TILES</span></div>

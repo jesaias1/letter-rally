@@ -1,43 +1,59 @@
 # Letter Rally
 
-Letter Rally is a real-time two-device word duel. One player creates a room, sends the generated URL to a friend, and the five-minute match begins automatically when both devices connect. No accounts or login are required.
+Letter Rally is a real-time two-device word duel with no accounts. Create a six-character room code, share the code or URL, and play a cumulative 3-5 round series. It also includes three bot difficulties, a daily seeded challenge, spectators, saved replays, achievements, optional power-ups, sound, vibration, and configurable timers.
 
-## Supabase configuration
+## Local setup
 
-This project is configured for:
-
-```text
-https://okmrobbuljzeutrrdpxv.supabase.co
-```
-
-The project reference and REST URL are not sufficient to connect a browser client. Copy the **Publishable key** from **Supabase Dashboard → Settings → API Keys**, then create `.env.local`:
+Create `.env.local`:
 
 ```bash
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
 ```
 
-Legacy projects may use the browser-safe `anon` key instead. Never place a secret key or `service_role` key in this frontend.
+Only use the browser-safe Supabase publishable key. Never put a secret or `service_role` key in a Vite environment variable.
 
-The production publishable key is included in `.env.production` because Supabase publishable keys are public browser configuration. Local development can still override it with `.env.local`.
-
-In **Supabase Dashboard → Realtime Settings**, keep **Allow public access** enabled. Letter Rally uses public Broadcast and Presence channels, so no database tables or SQL migrations are required for this MVP.
-
-Restart Vite after changing `.env.local`.
-
-## Run locally
-
-On Windows, double-click `Start Letter Rally.cmd`, or run:
+Run:
 
 ```bash
 npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-The host creates a room and copies the invite URL. A device on the same network can open the Network URL printed by Vite, but `localhost` URLs only work on the computer running Vite.
-
-For friends on different networks, deploy the `dist` build to a public HTTPS host such as Vercel, Netlify, or Cloudflare Pages, and configure the same environment variable there.
-
 Do not open `index.html` directly. Vite applications must be served.
+
+## Supabase backend
+
+Realtime Broadcast and Presence power the current no-login room transport. The repository also contains the server-authoritative game API and dictionary-report endpoint:
+
+```bash
+npx supabase login
+npx supabase link --project-ref okmrobbuljzeutrrdpxv
+npx supabase db push
+npx supabase functions deploy game-authority
+npx supabase functions deploy dictionary-report
+```
+
+The migration creates private, RLS-protected `game_rooms` and `dictionary_reports` tables. The `game-authority` Edge Function keeps player tokens secret, validates actions on the server, advances the authoritative clock, and rejects stale revisions. The service-role key is read only inside Supabase Edge Functions.
+
+The browser room flow continues to use Realtime host authority until the Edge Function is deployed and the client transport is switched on. Do not describe an undeployed build as cheat-proof: host authority is suitable for friendly play, while the included Edge Function is the competitive authority path.
+
+## Features
+
+- 3, 5, or 8 second claim windows and 1, 3, or 5 minute rounds
+- Fixed 3, 4, or 5 round cumulative-score series
+- Easy, Medium, and Hard bot opponents
+- Daily challenge with the same date-seeded letter and bot sequence for every player
+- Optional one-use tile swap and unused-penalty shield each round
+- Local statistics, achievements, bot records, and the latest ten replays
+- Live read-only spectators using a room code
+- Dictionary report button with local fallback and Supabase persistence
+- Sound cues and mobile vibration, with a persistent sound toggle
+- Animated center-to-board tile movement and rare-letter effects
+- No consecutive duplicate letters; Q, X, and Z have reduced draw weights
+
+## Scoring
+
+Final words score their tile value plus a length bonus. Every unused tile subtracts its value. A shield removes one unused tile from that penalty. If time expires, the engine chooses each board's best dictionary word and compares the resulting scores. Round scores accumulate across the selected series length.
 
 ## Commands
 
@@ -47,38 +63,3 @@ npm run lint
 npm run build
 npm run preview
 ```
-
-## Multiplayer architecture
-
-- Supabase Realtime Broadcast carries actions and authoritative state snapshots.
-- Supabase Presence shows whether both devices are connected.
-- The room creator is the authority for timers, random letters, claim timestamps, validation, tie-breaking, scoring, and rematches.
-- The invited player controls only Player 2; the host controls only Player 1.
-- Match wins are tracked and synchronized for the same two players across rematches in the room.
-- Solo mode uses the same rules against Easy, Medium, or Hard bots, with persistent win/loss/draw records for each difficulty.
-- Players choose a fixed 3, 4, or 5-round series. Round scores, including unused-letter penalties, accumulate and the highest total score wins the series.
-- Friends can join with either the full invite URL or by entering the six-character room code on the home screen.
-- Consecutive letters never repeat, while Q, X, and Z use much lower draw weights and receive a special rare-letter animation.
-- The active player's claim field is focused automatically for each new letter, and submitted guesses clear immediately.
-- Each player can locally randomize their collected tile order without changing the authoritative board or scoring.
-- Room codes use a short random 6-character URL-safe alphabet. The waiting room shows both the code and the full copyable invite URL.
-- Rooms are ephemeral. If the host closes the tab, the room ends.
-- Online room identity and the latest game snapshot are retained in the current browser tab so an accidental refresh can recover the match.
-- No gameplay data is written to a database.
-
-This architecture is appropriate for friendly no-login matches. Competitive ranked play should move authority to an Edge Function or dedicated game server.
-
-## Rules
-
-1. A random letter appears for five seconds.
-2. Each player may claim it using a dictionary word of at least four letters containing that letter.
-3. Fastest valid claim wins; near-ties use word length and Scrabble-style value.
-4. Only the displayed letter is awarded.
-5. Each successful claim locks the displayed letter's position in that player's claim word.
-6. A player cannot reuse the same position for that letter or repeat an exact claim word.
-7. The first player to submit a valid five-letter word built from their collected tiles wins. The opponent receives no automatic word credit and loses the value of every unsubmitted tile.
-8. After five minutes without an instant winner, the engine finds each board's best available word and applies unused-letter penalties.
-
-## Verification
-
-The test suite covers validation, duplicate letters, position locks, claim resolution, scoring, room-code generation, and the five-minute match duration.

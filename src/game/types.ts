@@ -1,3 +1,5 @@
+import type { GameRules } from './rules'
+
 export type PlayerId = 'player1' | 'player2'
 
 export type GameStatus =
@@ -27,6 +29,11 @@ export interface PlayerState {
   submittedFinalWord?: string
   bestWord?: string
   score: number
+  powerUps: {
+    swapAvailable: boolean
+    shieldAvailable: boolean
+    shieldedTileId?: string
+  }
 }
 
 export interface ClaimAttempt {
@@ -56,6 +63,7 @@ export interface GameLogEntry {
 }
 
 export interface GameState {
+  rules: GameRules
   status: GameStatus
   players: Record<PlayerId, PlayerState>
   currentLetter?: CurrentLetterState
@@ -69,6 +77,8 @@ export interface GameState {
   resultMessage?: string
   log: GameLogEntry[]
 }
+
+export type PowerUpKind = 'swap' | 'shield'
 
 export interface ValidationResult {
   valid: boolean

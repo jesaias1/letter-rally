@@ -7,16 +7,27 @@ export function getWordValue(word: string): number {
   return [...word].reduce((total, letter) => total + (LETTER_VALUES[letter] ?? 0), 0)
 }
 
-export function calculateScore(board: LetterTile[], word?: string): ScoreResult {
+export function calculateScore(board: LetterTile[], word?: string, shieldedTileId?: string): ScoreResult {
   const boardValue = board.reduce((total, tile) => total + tile.value, 0)
+  const shieldValue = board.find((tile) => tile.id === shieldedTileId)?.value ?? 0
 
   if (!word) {
-    return { total: -boardValue, wordValue: 0, lengthBonus: 0, unusedPenalty: boardValue }
+    const unusedPenalty = Math.max(0, boardValue - shieldValue)
+    return { total: -unusedPenalty, wordValue: 0, lengthBonus: 0, unusedPenalty }
   }
 
   const wordValue = getWordValue(word)
   const lengthBonus = word.length - 4
-  const unusedPenalty = boardValue - wordValue
+  const unusedTiles = [...board]
+  for (const letter of word) {
+    const unshieldedIndex = unusedTiles.findIndex((tile) => tile.letter === letter && tile.id !== shieldedTileId)
+    const matchingIndex = unshieldedIndex >= 0 ? unshieldedIndex : unusedTiles.findIndex((tile) => tile.letter === letter)
+    if (matchingIndex >= 0) unusedTiles.splice(matchingIndex, 1)
+  }
+  const unusedPenalty = unusedTiles.reduce(
+    (total, tile) => total + (tile.id === shieldedTileId ? 0 : tile.value),
+    0,
+  )
 
   return {
     total: wordValue + lengthBonus - unusedPenalty,

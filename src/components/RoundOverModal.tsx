@@ -37,11 +37,11 @@ export function RoundOverModal({ game, playerIds, canPlayAgain, series, onPlayAg
         <div className="scorecards">
           {playerIds.map((playerId) => {
             const player = game.players[playerId]
-            const details = calculateScore(player.board, player.bestWord)
+            const details = calculateScore(player.board, player.bestWord, player.powerUps.shieldedTileId)
             return (
               <article className={game.winner === playerId ? 'scorecard scorecard--winner' : 'scorecard'} key={playerId}>
                 <div className="scorecard__header"><span>{player.name}</span><strong>{player.score}</strong></div>
-                <div className="scorecard__tiles">{player.board.map((tile) => <LetterTile key={tile.id} tile={tile} side={playerId === 'player1' ? 'left' : 'right'} />)}</div>
+                <div className="scorecard__tiles">{player.board.map((tile) => <LetterTile key={tile.id} tile={tile} side={playerId === 'player1' ? 'left' : 'right'} shielded={player.powerUps.shieldedTileId === tile.id} />)}</div>
                 <p>{wordLabel}: <strong>{player.bestWord ?? 'None'}</strong></p>
                 <small>Word {details.wordValue} + length {details.lengthBonus} - unused {details.unusedPenalty}</small>
               </article>

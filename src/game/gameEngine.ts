@@ -1,12 +1,11 @@
 import {
-  CLAIM_WINDOW_MS,
   LETTER_RESOLUTION_MS,
   LETTER_VALUES,
-  ROUND_LENGTH_MS,
   START_COUNTDOWN_MS,
   TIE_THRESHOLD_MS,
 } from './constants'
 import { drawWeightedLetter } from './letterGenerator'
+import { DEFAULT_GAME_RULES, claimWindowMs, roundDurationMs, type GameRules } from './rules'
 import { calculateScore, findBestFinalWord, getWordValue } from './scoring'
 import type {
   ClaimAttempt,
@@ -15,6 +14,7 @@ import type {
   PlayerId,
   PlayerState,
   ValidationResult,
+  PowerUpKind,
 } from './types'
 import { isValidClaimWord, isValidFinalWord } from './validation'
 
@@ -33,6 +33,7 @@ function createPlayer(id: PlayerId, name: string): PlayerState {
     positionLocks: {},
     usedClaimWords: [],
     score: 0,
+    powerUps: { swapAvailable: true, shieldAvailable: true },
   }
 }
 
@@ -44,8 +45,9 @@ function logEntry(
   return { id: createId('log', time), time, type, message }
 }
 
-export function createGame(playerOneName = 'Player One', playerTwoName = 'Player Two'): GameState {
+export function createGame(playerOneName = 'Player One', playerTwoName = 'Player Two', rules: GameRules = DEFAULT_GAME_RULES): GameState {
   return {
+    rules,
     status: 'idle',
     players: {
       player1: createPlayer('player1', playerOneName),
@@ -61,7 +63,7 @@ export function startRound(state: GameState, now: number): GameState {
     status: 'countdown',
     countdownEndsAt: now + START_COUNTDOWN_MS,
     roundStartedAt: now + START_COUNTDOWN_MS,
-    roundEndsAt: now + START_COUNTDOWN_MS + ROUND_LENGTH_MS,
+    roundEndsAt: now + START_COUNTDOWN_MS + roundDurationMs(state.rules),
     log: [logEntry(now, 'system', 'Match ready. First rally incoming.')],
   }
 }
@@ -80,7 +82,7 @@ export function revealNextLetter(
       id: createId('letter', now),
       letter,
       startedAt: now,
-      endsAt: now + CLAIM_WINDOW_MS,
+      endsAt: now + claimWindowMs(state.rules),
       claims: [],
       resolved: false,
     },
@@ -245,8 +247,8 @@ export function submitFinalWord(
 
   const opponentId: PlayerId = playerId === 'player1' ? 'player2' : 'player1'
   const opponent = state.players[opponentId]
-  const score = calculateScore(player.board, result.normalizedWord).total
-  const opponentScore = calculateScore(opponent.board).total
+  const score = calculateScore(player.board, result.normalizedWord, player.powerUps.shieldedTileId).total
+  const opponentScore = calculateScore(opponent.board, undefined, opponent.powerUps.shieldedTileId).total
   const message = `${player.name} wins with ${result.normalizedWord}!`
   return {
     result,
@@ -281,7 +283,7 @@ export function endRoundByScore(state: GameState, now: number): GameState {
     (players, playerId) => {
       const player = state.players[playerId]
       const bestWord = findBestFinalWord(player.board)
-      const score = calculateScore(player.board, bestWord).total
+      const score = calculateScore(player.board, bestWord, player.powerUps.shieldedTileId).total
       players[playerId] = { ...player, bestWord, score }
       return players
     },
@@ -312,9 +314,65 @@ export function endRoundByScore(state: GameState, now: number): GameState {
   }
 }
 
-export function advanceGameClock(game: GameState, now: number): GameState {
+export function activatePowerUp(
+  state: GameState,
+  playerId: PlayerId,
+  kind: PowerUpKind,
+  now: number,
+  random: () => number = Math.random,
+): { state: GameState; result: ValidationResult } {
+  const player = state.players[playerId]
+  const invalid = (reason: string) => ({ state, result: { valid: false, normalizedWord: '', reason } })
+
+  if (!state.rules.powerUpsEnabled) return invalid('Power-ups are disabled for this match.')
+  if (state.status === 'roundOver' || state.status === 'idle') return invalid('The round is not active.')
+  if (!player.board.length) return invalid('Claim a tile before using a power-up.')
+
+  if (kind === 'shield') {
+    if (!player.powerUps.shieldAvailable) return invalid('Shield already used this round.')
+    const tile = player.board[player.board.length - 1]
+    const nextPlayer = {
+      ...player,
+      powerUps: { ...player.powerUps, shieldAvailable: false, shieldedTileId: tile.id },
+    }
+    return {
+      result: { valid: true, normalizedWord: '' },
+      state: {
+        ...state,
+        players: { ...state.players, [playerId]: nextPlayer },
+        log: [...state.log, logEntry(now, 'system', `${player.name} shielded ${tile.letter} from the unused penalty.`)],
+      },
+    }
+  }
+
+  if (!player.powerUps.swapAvailable) return invalid('Swap already used this round.')
+  const oldTile = player.board[player.board.length - 1]
+  const newLetter = drawWeightedLetter(oldTile.letter, random)
+  const replacement = { ...oldTile, id: createId('swap', now), letter: newLetter, value: LETTER_VALUES[newLetter], claimedAt: now }
+  const nextBoard = [...player.board.slice(0, -1), replacement]
+  const shieldedTileId = player.powerUps.shieldedTileId === oldTile.id
+    ? replacement.id
+    : player.powerUps.shieldedTileId
+  return {
+    result: { valid: true, normalizedWord: '' },
+    state: {
+      ...state,
+      players: {
+        ...state.players,
+        [playerId]: {
+          ...player,
+          board: nextBoard,
+          powerUps: { ...player.powerUps, swapAvailable: false, shieldedTileId },
+        },
+      },
+      log: [...state.log, logEntry(now, 'system', `${player.name} swapped ${oldTile.letter} for ${newLetter}.`)],
+    },
+  }
+}
+
+export function advanceGameClock(game: GameState, now: number, random: () => number = Math.random): GameState {
   if (game.status === 'countdown' && now >= (game.countdownEndsAt ?? Infinity)) {
-    return revealNextLetter(game, now)
+    return revealNextLetter(game, now, random)
   }
 
   if (
@@ -329,7 +387,7 @@ export function advanceGameClock(game: GameState, now: number): GameState {
   }
 
   if (game.status === 'letterResolution' && now >= (game.nextLetterAt ?? Infinity)) {
-    return revealNextLetter(game, now)
+    return revealNextLetter(game, now, random)
   }
 
   return game

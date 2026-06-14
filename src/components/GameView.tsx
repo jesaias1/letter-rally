@@ -1,6 +1,9 @@
 import type { GameState, PlayerId } from '../game/types'
 import type { SeriesState } from '../game/series'
 import type { PlayerFeedback } from '../multiplayer/types'
+import type { PowerUpKind } from '../game/types'
+import { useGameFeedback } from '../feedback/useGameFeedback'
+import { claimWindowMs } from '../game/rules'
 import { Arena } from './Arena'
 import { GameLog } from './GameLog'
 import { PlayerPanel } from './PlayerPanel'
@@ -16,13 +19,18 @@ interface GameViewProps {
   series: SeriesState
   modeLabel: string
   canPlayAgain: boolean
+  interactive?: boolean
+  soundEnabled: boolean
   onClaim: (word: string) => void
   onFinalWord: (word: string) => void
+  onPowerUp: (powerUp: PowerUpKind) => void
+  onReportWord: (word: string, reason: string) => void
   onPlayAgain: () => void
   onLeave: () => void
 }
 
-export function GameView({ game, now, localPlayerId, feedback, series, modeLabel, canPlayAgain, onClaim, onFinalWord, onPlayAgain, onLeave }: GameViewProps) {
+export function GameView({ game, now, localPlayerId, feedback, series, modeLabel, canPlayAgain, interactive = true, soundEnabled, onClaim, onFinalWord, onPowerUp, onReportWord, onPlayAgain, onLeave }: GameViewProps) {
+  useGameFeedback(game, localPlayerId, soundEnabled)
   const roundRemainingMs = Math.max(0, (game.roundEndsAt ?? now) - now)
   const countdown = game.status === 'countdown'
     ? Math.max(1, Math.ceil(((game.countdownEndsAt ?? now) - now) / 1_000))
@@ -49,9 +57,9 @@ export function GameView({ game, now, localPlayerId, feedback, series, modeLabel
       </header>
 
       <section className="duel-grid">
-        <PlayerPanel key={`player1-${game.roundStartedAt}`} side="left" player={game.players.player1} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player1} isLocalPlayer={localPlayerId === 'player1'} wins={series.roundWins.player1} onClaim={onClaim} onFinalWord={onFinalWord} />
-        <Arena countdown={countdown} currentLetter={game.currentLetter} gameStatus={game.status} now={now} resultMessage={game.resultMessage} players={game.players} />
-        <PlayerPanel key={`player2-${game.roundStartedAt}`} side="right" player={game.players.player2} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player2} isLocalPlayer={localPlayerId === 'player2'} wins={series.roundWins.player2} onClaim={onClaim} onFinalWord={onFinalWord} />
+        <PlayerPanel key={`player1-${game.roundStartedAt}`} side="left" player={game.players.player1} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player1} isLocalPlayer={interactive && localPlayerId === 'player1'} wins={series.roundWins.player1} powerUpsEnabled={game.rules.powerUpsEnabled} onClaim={onClaim} onFinalWord={onFinalWord} onPowerUp={onPowerUp} onReportWord={onReportWord} />
+        <Arena countdown={countdown} currentLetter={game.currentLetter} gameStatus={game.status} now={now} resultMessage={game.resultMessage} players={game.players} claimWindowMs={claimWindowMs(game.rules)} />
+        <PlayerPanel key={`player2-${game.roundStartedAt}`} side="right" player={game.players.player2} currentLetter={game.currentLetter} gameStatus={game.status} feedback={feedback.player2} isLocalPlayer={interactive && localPlayerId === 'player2'} wins={series.roundWins.player2} powerUpsEnabled={game.rules.powerUpsEnabled} onClaim={onClaim} onFinalWord={onFinalWord} onPowerUp={onPowerUp} onReportWord={onReportWord} />
       </section>
 
       <section className="lower-deck">
@@ -61,7 +69,7 @@ export function GameView({ game, now, localPlayerId, feedback, series, modeLabel
         <GameLog entries={game.log} />
       </section>
 
-      {game.status === 'roundOver' && <RoundOverModal game={game} playerIds={PLAYER_IDS} canPlayAgain={canPlayAgain} series={series} onPlayAgain={onPlayAgain} onLeave={onLeave} />}
+      {game.status === 'roundOver' && interactive && <RoundOverModal game={game} playerIds={PLAYER_IDS} canPlayAgain={canPlayAgain} series={series} onPlayAgain={onPlayAgain} onLeave={onLeave} />}
     </main>
   )
 }

@@ -1,4 +1,5 @@
-import type { GameState, PlayerId } from '../game/types'
+import type { GameState, PlayerId, PowerUpKind } from '../game/types'
+import type { ReplayFrame } from '../game/replay'
 import type { SeriesState } from '../game/series'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
@@ -7,7 +8,7 @@ export interface RoomSession {
   roomCode: string
   clientId: string
   playerName: string
-  role: 'host' | 'guest'
+  role: 'host' | 'guest' | 'spectator'
 }
 
 export interface PlayerFeedback {
@@ -19,6 +20,7 @@ export interface PlayerFeedback {
 export type PlayerAction =
   | { kind: 'claim'; word: string }
   | { kind: 'finalWord'; word: string }
+  | { kind: 'powerUp'; powerUp: PowerUpKind }
   | { kind: 'playAgain' }
 
 export interface StatePayload {
@@ -26,9 +28,15 @@ export interface StatePayload {
   series: SeriesState
   revision: number
   hostId: string
+  replayFrames: ReplayFrame[]
 }
 
 export interface JoinRequestPayload {
+  clientId: string
+  playerName: string
+}
+
+export interface SpectateRequestPayload {
   clientId: string
   playerName: string
 }
@@ -48,4 +56,5 @@ export interface ActionPayload {
 export interface ActionResultPayload {
   clientId: string
   feedback: PlayerFeedback
+  statistic?: 'validClaim' | 'finalWord' | 'powerUp'
 }

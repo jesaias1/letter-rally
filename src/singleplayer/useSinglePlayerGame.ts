@@ -5,17 +5,18 @@ import {
   startRound,
   submitClaim,
   submitFinalWord,
+  activatePowerUp as activatePowerUpInGame,
 } from '../game/gameEngine'
-import type { GameState, PlayerId } from '../game/types'
+import { createSeededRandom, dailySeed } from '../game/random'
+import { loadReplays, saveReplay, type ReplayFrame, type SavedReplay } from '../game/replay'
+import type { GameRules } from '../game/rules'
+import { DEFAULT_GAME_RULES } from '../game/rules'
 import { createSeries, recordSeriesRound, type SeriesLength, type SeriesState } from '../game/series'
+import type { GameState, PlayerId, PowerUpKind } from '../game/types'
 import type { PlayerFeedback } from '../multiplayer/types'
+import { loadStatistics, saveStatistics, type PlayerStatistics } from '../progress/playerProgress'
 import { BOT_SETTINGS, chooseBotClaimWord, chooseBotFinalWord, getBotReactionDelay, type BotDifficulty } from './bot'
-import {
-  loadBotRecords,
-  recordBotResult,
-  saveBotRecords,
-  type BotRecords,
-} from './records'
+import { loadBotRecords, recordBotResult, saveBotRecords, type BotRecords } from './records'
 
 const INITIAL_FEEDBACK: Record<PlayerId, PlayerFeedback> = {
   player1: { message: 'Waiting for the rally.', tone: 'neutral' },
@@ -26,6 +27,8 @@ interface SinglePlayerSession {
   difficulty: BotDifficulty
   playerName: string
   roundsToPlay: SeriesLength
+  rules: GameRules
+  daily: boolean
 }
 
 export function useSinglePlayerGame() {
@@ -35,44 +38,77 @@ export function useSinglePlayerGame() {
   const [feedback, setFeedback] = useState(INITIAL_FEEDBACK)
   const [series, setSeries] = useState<SeriesState>(() => createSeries(3))
   const [botRecords, setBotRecords] = useState<BotRecords>(() => loadBotRecords())
+  const [statistics, setStatistics] = useState<PlayerStatistics>(() => loadStatistics())
+  const [replays, setReplays] = useState<SavedReplay[]>(() => loadReplays())
 
   const sessionRef = useRef(session)
   const gameRef = useRef(game)
   const seriesRef = useRef(series)
   const finalAttemptBoardRef = useRef('')
   const plannedLetterRef = useRef('')
+  const letterRandomRef = useRef<() => number>(Math.random)
+  const botRandomRef = useRef<() => number>(Math.random)
+  const replayFramesRef = useRef<ReplayFrame[]>([])
+
+  const updateStatistics = useCallback((update: (current: PlayerStatistics) => PlayerStatistics) => {
+    setStatistics((current) => {
+      const next = update(current)
+      saveStatistics(next)
+      return next
+    })
+  }, [])
 
   const commitGame = useCallback((nextGame: GameState) => {
     const previousGame = gameRef.current
     gameRef.current = nextGame
     setGame(nextGame)
 
+    let nextSeries = seriesRef.current
     if (previousGame.status !== 'roundOver' && nextGame.status === 'roundOver') {
-      const nextSeries = recordSeriesRound(seriesRef.current, nextGame)
+      nextSeries = recordSeriesRound(nextSeries, nextGame)
       seriesRef.current = nextSeries
       setSeries(nextSeries)
 
-      const difficulty = sessionRef.current?.difficulty
-      if (difficulty && nextSeries.complete) {
-        setBotRecords((current) => {
-          const nextRecords = recordBotResult(current, difficulty, nextSeries.winner)
-          saveBotRecords(nextRecords)
-          return nextRecords
-        })
+      if (nextSeries.complete) {
+        const activeSession = sessionRef.current
+        if (activeSession) {
+          setBotRecords((current) => {
+            const nextRecords = recordBotResult(current, activeSession.difficulty, nextSeries.winner)
+            saveBotRecords(nextRecords)
+            return nextRecords
+          })
+          updateStatistics((current) => ({
+            ...current,
+            seriesPlayed: current.seriesPlayed + 1,
+            seriesWon: current.seriesWon + (nextSeries.winner === 'player1' ? 1 : 0),
+            seriesLost: current.seriesLost + (nextSeries.winner === 'player2' ? 1 : 0),
+            seriesDrawn: current.seriesDrawn + (nextSeries.winner ? 0 : 1),
+            roundsWon: current.roundsWon + nextSeries.roundWins.player1,
+            dailyChallenges: current.dailyChallenges + (activeSession.daily ? 1 : 0),
+            bestSeriesScore: Math.max(current.bestSeriesScore, nextSeries.totalScore.player1),
+          }))
+          const replay: SavedReplay = {
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+            label: `${activeSession.daily ? 'Daily' : activeSession.difficulty.toUpperCase()} ${nextSeries.totalScore.player1}:${nextSeries.totalScore.player2}`,
+            frames: [...replayFramesRef.current, { capturedAt: Date.now(), game: nextGame, series: nextSeries }],
+          }
+          setReplays(saveReplay(replay))
+        }
       }
     }
-  }, [])
 
-  useEffect(() => {
-    sessionRef.current = session
-  }, [session])
+    replayFramesRef.current.push({ capturedAt: Date.now(), game: nextGame, series: nextSeries })
+  }, [updateStatistics])
+
+  useEffect(() => { sessionRef.current = session }, [session])
 
   useEffect(() => {
     if (!session) return
     const timer = window.setInterval(() => {
       const tickNow = Date.now()
       setNow(tickNow)
-      const nextGame = advanceGameClock(gameRef.current, tickNow)
+      const nextGame = advanceGameClock(gameRef.current, tickNow, letterRandomRef.current)
       if (nextGame !== gameRef.current) commitGame(nextGame)
     }, 50)
     return () => window.clearInterval(timer)
@@ -84,27 +120,16 @@ export function useSinglePlayerGame() {
     if (!difficulty || game.status !== 'playing' || !currentLetter || currentLetter.resolved) return
     if (plannedLetterRef.current === currentLetter.id) return
     plannedLetterRef.current = currentLetter.id
-
-    const bot = game.players.player2
-    const word = chooseBotClaimWord(currentLetter.letter, bot, difficulty)
+    const word = chooseBotClaimWord(currentLetter.letter, game.players.player2, difficulty, botRandomRef.current)
     if (!word) return
-
     const letterId = currentLetter.id
     const timer = window.setTimeout(() => {
       const activeGame = gameRef.current
       if (activeGame.status !== 'playing' || activeGame.currentLetter?.id !== letterId) return
       const submission = submitClaim(activeGame, 'player2', word, Date.now())
-      setFeedback((current) => ({
-        ...current,
-        player2: {
-          letterId,
-          message: submission.attempt.valid ? 'Bot locked in.' : 'Bot missed its chance.',
-          tone: submission.attempt.valid ? 'success' : 'neutral',
-        },
-      }))
+      setFeedback((current) => ({ ...current, player2: { letterId, message: submission.attempt.valid ? 'Bot locked in.' : 'Bot missed its chance.', tone: submission.attempt.valid ? 'success' : 'neutral' } }))
       commitGame(submission.state)
-    }, getBotReactionDelay(difficulty))
-
+    }, getBotReactionDelay(difficulty, botRandomRef.current))
     return () => window.clearTimeout(timer)
   }, [commitGame, game.currentLetter, game.players.player2, game.status, session?.difficulty])
 
@@ -112,35 +137,31 @@ export function useSinglePlayerGame() {
     const difficulty = session?.difficulty
     const activeStatus = gameRef.current.status
     if (!difficulty || (activeStatus !== 'playing' && activeStatus !== 'letterResolution')) return
-
     const botBoard = game.players.player2.board
     const signature = botBoard.map((tile) => tile.id).join('|')
-    if (
-      botBoard.length < BOT_SETTINGS[difficulty].finalWordMinimumTiles ||
-      finalAttemptBoardRef.current === signature
-    ) return
-
+    if (botBoard.length < BOT_SETTINGS[difficulty].finalWordMinimumTiles || finalAttemptBoardRef.current === signature) return
     const finalWord = chooseBotFinalWord(botBoard)
     if (!finalWord) return
     finalAttemptBoardRef.current = signature
-
     const timer = window.setTimeout(() => {
-      const activeGame = gameRef.current
-      const submission = submitFinalWord(activeGame, 'player2', finalWord, Date.now())
+      const submission = submitFinalWord(gameRef.current, 'player2', finalWord, Date.now())
       if (submission.result.valid) commitGame(submission.state)
     }, BOT_SETTINGS[difficulty].finalWordDelay)
-
     return () => window.clearTimeout(timer)
   }, [commitGame, game.players.player2.board, session?.difficulty])
 
-  function startGame(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength) {
+  function beginSession(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules, daily: boolean) {
     const normalizedName = playerName.trim() || 'Player One'
-    const nextSession = { difficulty, playerName: normalizedName, roundsToPlay }
-    const nextGame = startRound(createGame(normalizedName, BOT_SETTINGS[difficulty].name), Date.now())
+    const nextSession = { difficulty, playerName: normalizedName, roundsToPlay, rules, daily }
+    const nextSeries = createSeries(roundsToPlay)
+    const nextGame = startRound(createGame(normalizedName, daily ? 'Daily Bot' : BOT_SETTINGS[difficulty].name, rules), Date.now())
+    letterRandomRef.current = daily ? createSeededRandom(`${dailySeed()}-LETTER-RALLY`) : Math.random
+    botRandomRef.current = daily ? createSeededRandom(`${dailySeed()}-DAILY-BOT`) : Math.random
     finalAttemptBoardRef.current = ''
     plannedLetterRef.current = ''
-    seriesRef.current = createSeries(roundsToPlay)
-    setSeries(seriesRef.current)
+    replayFramesRef.current = [{ capturedAt: Date.now(), game: nextGame, series: nextSeries }]
+    seriesRef.current = nextSeries
+    setSeries(nextSeries)
     setFeedback(INITIAL_FEEDBACK)
     setSession(nextSession)
     sessionRef.current = nextSession
@@ -148,45 +169,44 @@ export function useSinglePlayerGame() {
     setGame(nextGame)
   }
 
+  function startGame(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules) {
+    beginSession(playerName, difficulty, roundsToPlay, rules, false)
+  }
+
+  function startDaily(playerName: string) {
+    beginSession(playerName, 'medium', 3, { ...DEFAULT_GAME_RULES, roundDurationMinutes: 3 }, true)
+  }
+
   function submitPlayerClaim(word: string) {
     const submission = submitClaim(gameRef.current, 'player1', word, Date.now())
-    setFeedback((current) => ({
-      ...current,
-      player1: {
-        letterId: gameRef.current.currentLetter?.id,
-        message: submission.attempt.valid
-          ? `${submission.attempt.normalizedWord} locked in at position ${submission.attempt.lockedPosition}.`
-          : submission.attempt.reason ?? 'Claim rejected.',
-        tone: submission.attempt.valid ? 'success' : 'error',
-      },
-    }))
+    if (submission.attempt.valid) updateStatistics((current) => ({ ...current, validClaims: current.validClaims + 1 }))
+    setFeedback((current) => ({ ...current, player1: { letterId: gameRef.current.currentLetter?.id, message: submission.attempt.valid ? `${submission.attempt.normalizedWord} locked in at position ${submission.attempt.lockedPosition}.` : submission.attempt.reason ?? 'Claim rejected.', tone: submission.attempt.valid ? 'success' : 'error' } }))
     commitGame(submission.state)
   }
 
   function submitPlayerFinalWord(word: string) {
     const submission = submitFinalWord(gameRef.current, 'player1', word, Date.now())
-    setFeedback((current) => ({
-      ...current,
-      player1: {
-        message: submission.result.valid
-          ? `${submission.result.normalizedWord} wins the rally.`
-          : submission.result.reason ?? 'Final word rejected.',
-        tone: submission.result.valid ? 'success' : 'error',
-      },
-    }))
+    if (submission.result.valid) updateStatistics((current) => ({ ...current, finalWords: current.finalWords + 1 }))
+    setFeedback((current) => ({ ...current, player1: { message: submission.result.valid ? `${submission.result.normalizedWord} wins the rally.` : submission.result.reason ?? 'Final word rejected.', tone: submission.result.valid ? 'success' : 'error' } }))
     commitGame(submission.state)
   }
 
+  function activatePowerUp(powerUp: PowerUpKind) {
+    const activation = activatePowerUpInGame(gameRef.current, 'player1', powerUp, Date.now(), letterRandomRef.current)
+    if (activation.result.valid) updateStatistics((current) => ({ ...current, powerUpsUsed: current.powerUpsUsed + 1 }))
+    setFeedback((current) => ({ ...current, player1: { message: activation.result.valid ? `${powerUp === 'swap' ? 'Tile swapped.' : 'Last tile shielded.'}` : activation.result.reason ?? 'Power-up unavailable.', tone: activation.result.valid ? 'success' : 'error' } }))
+    commitGame(activation.state)
+  }
+
   function playAgain() {
-    if (!sessionRef.current) return
+    const activeSession = sessionRef.current
+    if (!activeSession) return
     if (seriesRef.current.complete) {
-      seriesRef.current = createSeries(sessionRef.current.roundsToPlay)
+      seriesRef.current = createSeries(activeSession.roundsToPlay)
       setSeries(seriesRef.current)
+      replayFramesRef.current = []
     }
-    const restarted = startRound(
-      createGame(sessionRef.current.playerName, BOT_SETTINGS[sessionRef.current.difficulty].name),
-      Date.now(),
-    )
+    const restarted = startRound(createGame(activeSession.playerName, activeSession.daily ? 'Daily Bot' : BOT_SETTINGS[activeSession.difficulty].name, activeSession.rules), Date.now())
     finalAttemptBoardRef.current = ''
     plannedLetterRef.current = ''
     setFeedback(INITIAL_FEEDBACK)
@@ -200,18 +220,5 @@ export function useSinglePlayerGame() {
     setGame(gameRef.current)
   }
 
-  return {
-    session,
-    game,
-    now,
-    localPlayerId: 'player1' as const,
-    feedback,
-    series,
-    botRecords,
-    startGame,
-    submitClaim: submitPlayerClaim,
-    submitFinalWord: submitPlayerFinalWord,
-    playAgain,
-    leaveGame,
-  }
+  return { session, game, now, localPlayerId: 'player1' as const, feedback, series, botRecords, statistics, replays, startGame, startDaily, submitClaim: submitPlayerClaim, submitFinalWord: submitPlayerFinalWord, usePowerUp: activatePowerUp, playAgain, leaveGame }
 }

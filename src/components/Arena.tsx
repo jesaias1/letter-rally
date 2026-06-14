@@ -1,4 +1,4 @@
-import { CLAIM_WINDOW_MS, LETTER_VALUES } from '../game/constants'
+import { LETTER_VALUES } from '../game/constants'
 import type { CurrentLetterState, GameState, PlayerId, PlayerState } from '../game/types'
 
 interface ArenaProps {
@@ -8,11 +8,12 @@ interface ArenaProps {
   now: number
   resultMessage?: string
   players: Record<PlayerId, PlayerState>
+  claimWindowMs: number
 }
 
-export function Arena({ countdown, currentLetter, gameStatus, now, resultMessage, players }: ArenaProps) {
+export function Arena({ countdown, currentLetter, gameStatus, now, resultMessage, players, claimWindowMs }: ArenaProps) {
   const remaining = currentLetter ? Math.max(0, currentLetter.endsAt - now) : 0
-  const progress = currentLetter ? (remaining / CLAIM_WINDOW_MS) * 100 : 0
+  const progress = currentLetter ? (remaining / claimWindowMs) * 100 : 0
   const validClaims = currentLetter?.claims.filter((claim) => claim.valid) ?? []
   const rareLetter = Boolean(currentLetter && 'QXZ'.includes(currentLetter.letter))
 
