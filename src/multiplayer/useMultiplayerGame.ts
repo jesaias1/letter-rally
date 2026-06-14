@@ -17,6 +17,7 @@ import type {
   AssignmentPayload,
   ConnectionStatus,
   JoinRequestPayload,
+  MatchWins,
   PlayerAction,
   PlayerFeedback,
   RoomSession,
@@ -32,26 +33,69 @@ interface BroadcastMessage<T> {
   payload: T
 }
 
+interface StoredMultiplayerState {
+  session: RoomSession
+  game: GameState
+  matchWins: MatchWins
+  localPlayerId?: PlayerId
+  revision: number
+}
+
+const SESSION_STORAGE_KEY = 'letter-rally-multiplayer-session'
+
+function loadStoredState(roomCode?: string): StoredMultiplayerState | undefined {
+  if (!roomCode) return undefined
+  try {
+    const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+    if (!stored) return undefined
+    const parsed = JSON.parse(stored) as StoredMultiplayerState
+    return parsed.session.roomCode === roomCode ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function saveStoredState(state: StoredMultiplayerState): void {
+  try {
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Recovery is best-effort when browser storage is unavailable.
+  }
+}
+
 export function useMultiplayerGame() {
-  const [session, setSession] = useState<RoomSession | null>(null)
-  const [game, setGame] = useState<GameState>(() => createGame('Host', 'Rival'))
+  const invitedRoomCode = getRoomCodeFromUrl()
+  const [restoredState] = useState(() => loadStoredState(invitedRoomCode))
+  const [session, setSession] = useState<RoomSession | null>(restoredState?.session ?? null)
+  const [game, setGame] = useState<GameState>(() => restoredState?.game ?? createGame('Host', 'Rival'))
   const [now, setNow] = useState(() => Date.now())
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(restoredState ? 'connecting' : 'idle')
   const [connectedPlayers, setConnectedPlayers] = useState(0)
-  const [localPlayerId, setLocalPlayerId] = useState<PlayerId | undefined>()
+  const [localPlayerId, setLocalPlayerId] = useState<PlayerId | undefined>(restoredState?.localPlayerId)
   const [feedback, setFeedback] = useState(INITIAL_FEEDBACK)
-  const [matchWins, setMatchWins] = useState(INITIAL_MATCH_WINS)
+  const [matchWins, setMatchWins] = useState(restoredState?.matchWins ?? INITIAL_MATCH_WINS)
   const [roomError, setRoomError] = useState<string>()
 
   const channelRef = useRef<RealtimeChannel | undefined>(undefined)
   const gameRef = useRef(game)
-  const revisionRef = useRef(0)
+  const revisionRef = useRef(restoredState?.revision ?? 0)
   const guestClientIdRef = useRef<string | undefined>(undefined)
   const sessionRef = useRef<RoomSession | null>(null)
-  const matchWinsRef = useRef(INITIAL_MATCH_WINS)
+  const matchWinsRef = useRef(restoredState?.matchWins ?? INITIAL_MATCH_WINS)
 
-  const invitedRoomCode = getRoomCodeFromUrl()
   const inviteUrl = session ? createInviteUrl(session.roomCode) : undefined
+
+  useEffect(() => {
+    if (!session) return
+    const storedState: StoredMultiplayerState = {
+      session,
+      game,
+      matchWins,
+      localPlayerId,
+      revision: revisionRef.current,
+    }
+    saveStoredState(storedState)
+  }, [game, localPlayerId, matchWins, session])
 
   const sendBroadcast = useCallback(async (event: string, payload: object) => {
     if (!channelRef.current) return
@@ -177,7 +221,11 @@ export function useMultiplayerGame() {
     channel
       .on('presence', { event: 'sync' }, () => {
         const presence = channel.presenceState()
-        setConnectedPlayers(Object.values(presence).flat().length)
+        const entries = Object.values(presence).flat() as Array<{ clientId?: string }>
+        const clientIds = entries
+          .map((entry) => String(entry.clientId ?? ''))
+          .filter(Boolean)
+        setConnectedPlayers(new Set(clientIds).size)
       })
       .on(
         'broadcast',
@@ -245,6 +293,14 @@ export function useMultiplayerGame() {
       .on('broadcast', { event: 'sync_request' }, () => {
         if (session.role === 'host') publishState(gameRef.current)
       })
+      .on('broadcast', { event: 'host_ready' }, () => {
+        if (session.role !== 'guest') return
+        void sendBroadcast('join_request', {
+          clientId: session.clientId,
+          playerName: session.playerName,
+        } satisfies JoinRequestPayload)
+        void sendBroadcast('sync_request', { clientId: session.clientId })
+      })
       .subscribe(async (status, error) => {
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected')
@@ -264,6 +320,12 @@ export function useMultiplayerGame() {
             await channel.send({
               type: 'broadcast',
               event: 'sync_request',
+              payload: { clientId: session.clientId },
+            })
+          } else {
+            await channel.send({
+              type: 'broadcast',
+              event: 'host_ready',
               payload: { clientId: session.clientId },
             })
           }

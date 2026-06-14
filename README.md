@@ -55,10 +55,12 @@ npm run preview
 - The room creator is the authority for timers, random letters, claim timestamps, validation, tie-breaking, scoring, and rematches.
 - The invited player controls only Player 2; the host controls only Player 1.
 - Match wins are tracked and synchronized for the same two players across rematches in the room.
+- Solo mode uses the same rules against Easy, Medium, or Hard bots, with persistent win/loss/draw records for each difficulty.
 - The active player's claim field is focused automatically for each new letter, and submitted guesses clear immediately.
 - Each player can locally randomize their collected tile order without changing the authoritative board or scoring.
 - Room codes use a short random 6-character URL-safe alphabet. The waiting room shows both the code and the full copyable invite URL.
 - Rooms are ephemeral. If the host closes the tab, the room ends.
+- Online room identity and the latest game snapshot are retained in the current browser tab so an accidental refresh can recover the match.
 - No gameplay data is written to a database.
 
 This architecture is appropriate for friendly no-login matches. Competitive ranked play should move authority to an Edge Function or dedicated game server.
