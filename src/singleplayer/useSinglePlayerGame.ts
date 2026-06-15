@@ -7,10 +7,8 @@ import {
   submitFinalWord,
   activatePowerUp as activatePowerUpInGame,
 } from '../game/gameEngine'
-import { createSeededRandom, dailySeed } from '../game/random'
 import { loadReplays, saveReplay, type ReplayFrame, type SavedReplay } from '../game/replay'
 import type { GameRules } from '../game/rules'
-import { DEFAULT_GAME_RULES } from '../game/rules'
 import { createSeries, recordSeriesRound, type SeriesLength, type SeriesState } from '../game/series'
 import type { GameState, PlayerId, PowerUpKind } from '../game/types'
 import type { PlayerFeedback } from '../multiplayer/types'
@@ -28,7 +26,6 @@ interface SinglePlayerSession {
   playerName: string
   roundsToPlay: SeriesLength
   rules: GameRules
-  daily: boolean
 }
 
 export function useSinglePlayerGame() {
@@ -84,13 +81,12 @@ export function useSinglePlayerGame() {
             seriesLost: current.seriesLost + (nextSeries.winner === 'player2' ? 1 : 0),
             seriesDrawn: current.seriesDrawn + (nextSeries.winner ? 0 : 1),
             roundsWon: current.roundsWon + nextSeries.roundWins.player1,
-            dailyChallenges: current.dailyChallenges + (activeSession.daily ? 1 : 0),
             bestSeriesScore: Math.max(current.bestSeriesScore, nextSeries.totalScore.player1),
           }))
           const replay: SavedReplay = {
             id: crypto.randomUUID(),
             createdAt: Date.now(),
-            label: `${activeSession.daily ? 'Daily' : activeSession.difficulty.toUpperCase()} ${nextSeries.totalScore.player1}:${nextSeries.totalScore.player2}`,
+            label: `${activeSession.difficulty.toUpperCase()} ${nextSeries.totalScore.player1}:${nextSeries.totalScore.player2}`,
             frames: [...replayFramesRef.current, { capturedAt: Date.now(), game: nextGame, series: nextSeries }],
           }
           setReplays(saveReplay(replay))
@@ -150,13 +146,13 @@ export function useSinglePlayerGame() {
     return () => window.clearTimeout(timer)
   }, [commitGame, game.players.player2.board, session?.difficulty])
 
-  function beginSession(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules, daily: boolean) {
+  function beginSession(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules) {
     const normalizedName = playerName.trim() || 'Player One'
-    const nextSession = { difficulty, playerName: normalizedName, roundsToPlay, rules, daily }
+    const nextSession = { difficulty, playerName: normalizedName, roundsToPlay, rules }
     const nextSeries = createSeries(roundsToPlay)
-    const nextGame = startRound(createGame(normalizedName, daily ? 'Daily Bot' : BOT_SETTINGS[difficulty].name, rules), Date.now())
-    letterRandomRef.current = daily ? createSeededRandom(`${dailySeed()}-LETTER-RALLY`) : Math.random
-    botRandomRef.current = daily ? createSeededRandom(`${dailySeed()}-DAILY-BOT`) : Math.random
+    const nextGame = startRound(createGame(normalizedName, BOT_SETTINGS[difficulty].name, rules), Date.now())
+    letterRandomRef.current = Math.random
+    botRandomRef.current = Math.random
     finalAttemptBoardRef.current = ''
     plannedLetterRef.current = ''
     replayFramesRef.current = [{ capturedAt: Date.now(), game: nextGame, series: nextSeries }]
@@ -170,11 +166,7 @@ export function useSinglePlayerGame() {
   }
 
   function startGame(playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules) {
-    beginSession(playerName, difficulty, roundsToPlay, rules, false)
-  }
-
-  function startDaily(playerName: string) {
-    beginSession(playerName, 'medium', 3, { ...DEFAULT_GAME_RULES, roundDurationMinutes: 3 }, true)
+    beginSession(playerName, difficulty, roundsToPlay, rules)
   }
 
   function submitPlayerClaim(word: string) {
@@ -206,7 +198,7 @@ export function useSinglePlayerGame() {
       setSeries(seriesRef.current)
       replayFramesRef.current = []
     }
-    const restarted = startRound(createGame(activeSession.playerName, activeSession.daily ? 'Daily Bot' : BOT_SETTINGS[activeSession.difficulty].name, activeSession.rules), Date.now())
+    const restarted = startRound(createGame(activeSession.playerName, BOT_SETTINGS[activeSession.difficulty].name, activeSession.rules), Date.now())
     finalAttemptBoardRef.current = ''
     plannedLetterRef.current = ''
     setFeedback(INITIAL_FEEDBACK)
@@ -220,5 +212,5 @@ export function useSinglePlayerGame() {
     setGame(gameRef.current)
   }
 
-  return { session, game, now, localPlayerId: 'player1' as const, feedback, series, botRecords, statistics, replays, startGame, startDaily, submitClaim: submitPlayerClaim, submitFinalWord: submitPlayerFinalWord, usePowerUp: activatePowerUp, playAgain, leaveGame }
+  return { session, game, now, localPlayerId: 'player1' as const, feedback, series, botRecords, statistics, replays, startGame, submitClaim: submitPlayerClaim, submitFinalWord: submitPlayerFinalWord, usePowerUp: activatePowerUp, playAgain, leaveGame }
 }

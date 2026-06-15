@@ -7,7 +7,6 @@ export interface PlayerStatistics {
   validClaims: number
   finalWords: number
   powerUpsUsed: number
-  dailyChallenges: number
   bestSeriesScore: number
 }
 
@@ -27,7 +26,6 @@ export const EMPTY_STATISTICS: PlayerStatistics = {
   validClaims: 0,
   finalWords: 0,
   powerUpsUsed: 0,
-  dailyChallenges: 0,
   bestSeriesScore: 0,
 }
 
@@ -52,7 +50,6 @@ export function getAchievements(statistics: PlayerStatistics): Achievement[] {
     { id: 'claim-25', title: 'Quick Draw', description: 'Lock 25 valid claims.', unlocked: statistics.validClaims >= 25 },
     { id: 'finisher-5', title: 'Wordsmith', description: 'Submit 5 winning final words.', unlocked: statistics.finalWords >= 5 },
     { id: 'power-user', title: 'Powered Up', description: 'Use 10 swaps or shields.', unlocked: statistics.powerUpsUsed >= 10 },
-    { id: 'daily-7', title: 'Daily Habit', description: 'Complete 7 daily challenges.', unlocked: statistics.dailyChallenges >= 7 },
     { id: 'score-50', title: 'High Voltage', description: 'Score 50 points in one series.', unlocked: statistics.bestSeriesScore >= 50 },
   ]
 }

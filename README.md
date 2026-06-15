@@ -1,6 +1,6 @@
 # Letter Rally
 
-Letter Rally is a real-time two-device word duel with no accounts. Create a six-character room code, share the code or URL, and play a cumulative 3-5 round series. It also includes three bot difficulties, a daily seeded challenge, spectators, saved replays, achievements, optional power-ups, sound, vibration, and configurable timers.
+Letter Rally is a real-time two-device word duel with no accounts. Create a six-character room code, share the code or URL, and play a cumulative 3-5 round series. It also includes three bot difficulties, spectators, saved replays, achievements, optional power-ups, sound, vibration, and configurable timers.
 
 ## Local setup
 
@@ -42,7 +42,6 @@ The browser room flow continues to use Realtime host authority until the Edge Fu
 - 3, 5, or 8 second claim windows and 1, 3, or 5 minute rounds
 - Fixed 3, 4, or 5 round cumulative-score series
 - Easy, Medium, and Hard bot opponents
-- Daily challenge with the same date-seeded letter and bot sequence for every player
 - Optional one-use tile swap and unused-penalty shield each round
 - Local statistics, achievements, bot records, and the latest ten replays
 - Live read-only spectators using a room code

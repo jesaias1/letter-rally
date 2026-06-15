@@ -65,10 +65,6 @@ export function App() {
           singlePlayer.startGame(name, difficulty, rounds, rules)
           setMode('singleplayer')
         }}
-        onStartDaily={(name) => {
-          singlePlayer.startDaily(name)
-          setMode('singleplayer')
-        }}
         onOpenReplay={setReplay}
       />
     )
@@ -82,7 +78,7 @@ export function App() {
         localPlayerId={singlePlayer.localPlayerId}
         feedback={singlePlayer.feedback}
         series={singlePlayer.series}
-        modeLabel={singlePlayer.session.daily ? 'DAILY SEEDED CHALLENGE' : `SOLO - ${singlePlayer.session.difficulty.toUpperCase()} BOT`}
+        modeLabel={`SOLO - ${singlePlayer.session.difficulty.toUpperCase()} BOT`}
         canPlayAgain
         soundEnabled={soundEnabled}
         onClaim={singlePlayer.submitClaim}
@@ -112,7 +108,6 @@ export function App() {
         onJoinRoom={multiplayer.joinRoom}
         onSpectate={multiplayer.spectateRoom}
         onStartBot={singlePlayer.startGame}
-        onStartDaily={singlePlayer.startDaily}
         onOpenReplay={setReplay}
       />
     )

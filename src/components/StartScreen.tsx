@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import type { SeriesLength } from '../game/series'
-import type { ClaimWindowSeconds, GameRules, RoundDurationMinutes } from '../game/rules'
 import type { SavedReplay } from '../game/replay'
+import type { ClaimWindowSeconds, GameRules, RoundDurationMinutes } from '../game/rules'
+import type { SeriesLength } from '../game/series'
 import { normalizeRoomCode } from '../multiplayer/roomCode'
 import type { PlayerStatistics } from '../progress/playerProgress'
 import type { BotDifficulty } from '../singleplayer/bot'
@@ -21,15 +21,15 @@ interface StartScreenProps {
   onJoinRoom: (playerName: string, roomCode?: string) => boolean
   onSpectate: (playerName: string, roomCode: string) => boolean
   onStartBot: (playerName: string, difficulty: BotDifficulty, roundsToPlay: SeriesLength, rules: GameRules) => void
-  onStartDaily: (playerName: string) => void
   onOpenReplay: (replay: SavedReplay) => void
 }
 
 const DIFFICULTIES: BotDifficulty[] = ['easy', 'medium', 'hard']
 const SERIES_LENGTHS: SeriesLength[] = [3, 4, 5]
 
-export function StartScreen({ mode, roomCode, error, botRecords, statistics, replays, soundEnabled, onToggleSound, onCreateRoom, onJoinRoom, onSpectate, onStartBot, onStartDaily, onOpenReplay }: StartScreenProps) {
+export function StartScreen({ mode, roomCode, error, botRecords, statistics, replays, soundEnabled, onToggleSound, onCreateRoom, onJoinRoom, onSpectate, onStartBot, onOpenReplay }: StartScreenProps) {
   const [playerName, setPlayerName] = useState(() => window.localStorage.getItem('letter-rally-player-name') ?? '')
+  const [playMode, setPlayMode] = useState<'bot' | 'online'>('bot')
   const [difficulty, setDifficulty] = useState<BotDifficulty>('medium')
   const [roundsToPlay, setRoundsToPlay] = useState<SeriesLength>(3)
   const [manualRoomCode, setManualRoomCode] = useState('')
@@ -49,60 +49,85 @@ export function StartScreen({ mode, roomCode, error, botRecords, statistics, rep
     event.preventDefault()
     const name = rememberName()
     if (joining) onJoinRoom(name, roomCode)
-    else onStartBot(name, difficulty, roundsToPlay, rules)
+    else if (playMode === 'bot') onStartBot(name, difficulty, roundsToPlay, rules)
+    else onCreateRoom(name, roundsToPlay, rules)
   }
 
   return (
     <main className="start-screen">
       <div className="start-screen__noise" />
       <section className="start-card">
-        <div className="start-card__brand"><span className="brand-mark brand-mark--large">LR</span><p className="eyebrow">A REAL-TIME WORD DUEL</p></div>
-        <div className="start-card__hero">
-          <h1>LETTER<span>RALLY</span></h1>
-          <p>{joining ? `You were invited to room ${roomCode}. Choose your name and enter the rally.` : 'Play a cumulative 3, 4, or 5-round series against a bot or a friend.'}</p>
-        </div>
-        <form className="player-setup player-setup--online" onSubmit={handleSubmit}>
-          <label>
+        <header className="start-header">
+          <div className="start-card__brand"><span className="brand-mark brand-mark--large">LR</span><p className="eyebrow">REAL-TIME WORD DUELS</p></div>
+          <div className="start-card__hero">
+            <h1>LETTER <span>RALLY</span></h1>
+            <p>{joining ? `Room ${roomCode} is ready.` : 'Claim letters. Build your word. Win the series.'}</p>
+          </div>
+          <div className="start-highlights" aria-label="Game summary">
+            <span>NO LOGIN</span><span>3-5 ROUNDS</span><span>LIVE MULTIPLAYER</span>
+          </div>
+        </header>
+
+        <form className="start-console" onSubmit={handleSubmit}>
+          {!joining && (
+            <div className="play-mode-switch" role="group" aria-label="Game mode">
+              <button className={playMode === 'bot' ? 'play-mode-option play-mode-option--active' : 'play-mode-option'} type="button" aria-pressed={playMode === 'bot'} onClick={() => setPlayMode('bot')}>PLAY A BOT</button>
+              <button className={playMode === 'online' ? 'play-mode-option play-mode-option--active' : 'play-mode-option'} type="button" aria-pressed={playMode === 'online'} onClick={() => setPlayMode('online')}>PLAY ONLINE</button>
+            </div>
+          )}
+
+          <label className="console-field">
             <span>YOUR NAME</span>
             <input autoFocus maxLength={18} placeholder={joining ? 'PLAYER TWO' : 'PLAYER ONE'} value={playerName} onChange={(event) => setPlayerName(event.target.value)} aria-label="Your player name" />
           </label>
+
+          {!joining && playMode === 'bot' && (
+            <fieldset className="difficulty-picker">
+              <legend>DIFFICULTY</legend>
+              <div>{DIFFICULTIES.map((option) => <button className={difficulty === option ? 'difficulty-option difficulty-option--active' : 'difficulty-option'} key={option} type="button" aria-pressed={difficulty === option} onClick={() => setDifficulty(option)}><strong>{option}</strong><span>{botRecords[option].wins}W {botRecords[option].losses}L</span></button>)}</div>
+            </fieldset>
+          )}
+
           {!joining && (
-            <>
-              <fieldset className="difficulty-picker">
-                <legend>BOT DIFFICULTY</legend>
-                <div>{DIFFICULTIES.map((option) => <button className={difficulty === option ? 'difficulty-option difficulty-option--active' : 'difficulty-option'} key={option} type="button" aria-pressed={difficulty === option} onClick={() => setDifficulty(option)}><strong>{option}</strong><span>{botRecords[option].wins}W {botRecords[option].losses}L {botRecords[option].draws}D</span></button>)}</div>
-              </fieldset>
-              <fieldset className="series-picker">
-                <legend>SERIES LENGTH</legend>
-                <div>{SERIES_LENGTHS.map((rounds) => <button className={roundsToPlay === rounds ? 'series-option series-option--active' : 'series-option'} key={rounds} type="button" aria-pressed={roundsToPlay === rounds} onClick={() => setRoundsToPlay(rounds)}><strong>{rounds}</strong><span>ROUNDS</span></button>)}</div>
-              </fieldset>
+            <fieldset className="series-picker series-picker--compact">
+              <legend>ROUNDS</legend>
+              <div>{SERIES_LENGTHS.map((rounds) => <button className={roundsToPlay === rounds ? 'series-option series-option--active' : 'series-option'} key={rounds} type="button" aria-pressed={roundsToPlay === rounds} onClick={() => setRoundsToPlay(rounds)}><strong>{rounds}</strong></button>)}</div>
+            </fieldset>
+          )}
+
+          {!joining && (
+            <details className="start-disclosure">
+              <summary>GAME SETTINGS <span>{claimWindowSeconds}s claim / {roundDurationMinutes}m round</span></summary>
               <div className="custom-rules">
                 <label><span>CLAIM TIMER</span><select value={claimWindowSeconds} onChange={(event) => setClaimWindowSeconds(Number(event.target.value) as ClaimWindowSeconds)}><option value="3">3 SEC</option><option value="5">5 SEC</option><option value="8">8 SEC</option></select></label>
                 <label><span>ROUND LENGTH</span><select value={roundDurationMinutes} onChange={(event) => setRoundDurationMinutes(Number(event.target.value) as RoundDurationMinutes)}><option value="1">1 MIN</option><option value="3">3 MIN</option><option value="5">5 MIN</option></select></label>
                 <button className={powerUpsEnabled ? 'rule-toggle rule-toggle--active' : 'rule-toggle'} type="button" aria-pressed={powerUpsEnabled} onClick={() => setPowerUpsEnabled((current) => !current)}>POWER-UPS {powerUpsEnabled ? 'ON' : 'OFF'}</button>
                 <button className={soundEnabled ? 'rule-toggle rule-toggle--active' : 'rule-toggle'} type="button" aria-pressed={soundEnabled} onClick={onToggleSound}>SOUND {soundEnabled ? 'ON' : 'OFF'}</button>
               </div>
-            </>
+            </details>
           )}
+
           {error && <p className="setup-error">{error}</p>}
-          <button className="primary-button primary-button--start" type="submit">{joining ? 'JOIN THE RALLY' : `PLAY ${difficulty.toUpperCase()} BOT`} <span aria-hidden="true">-&gt;</span></button>
+          <button className="primary-button primary-button--start" type="submit">
+            {joining ? 'JOIN ROOM' : playMode === 'bot' ? `PLAY ${difficulty.toUpperCase()}` : 'CREATE ROOM'} <span aria-hidden="true">-&gt;</span>
+          </button>
+
+          {!joining && playMode === 'online' && (
+            <div className="room-entry">
+              <label><span>OR ENTER A ROOM CODE</span><input maxLength={6} placeholder="ABC123" value={manualRoomCode} onChange={(event) => setManualRoomCode(normalizeRoomCode(event.target.value))} aria-label="Room code" /></label>
+              <button type="button" disabled={manualRoomCode.length !== 6} onClick={() => onJoinRoom(rememberName(), manualRoomCode)}>JOIN</button>
+              <button type="button" disabled={manualRoomCode.length !== 6} onClick={() => onSpectate(rememberName(), manualRoomCode)}>WATCH</button>
+            </div>
+          )}
+
           {!joining && (
-            <>
-              <button className="daily-button" type="button" onClick={() => onStartDaily(rememberName())}>PLAY TODAY'S SEEDED CHALLENGE</button>
-              <button className="secondary-button" type="button" onClick={() => onCreateRoom(rememberName(), roundsToPlay, rules)}>CREATE ONLINE ROOM - {roundsToPlay} ROUNDS</button>
-              <div className="manual-join">
-                <label><span>HAVE A ROOM CODE?</span><input maxLength={6} placeholder="ABC123" value={manualRoomCode} onChange={(event) => setManualRoomCode(normalizeRoomCode(event.target.value))} aria-label="Room code" /></label>
-                <button className="secondary-button" type="button" disabled={manualRoomCode.length !== 6} onClick={() => onJoinRoom(rememberName(), manualRoomCode)}>JOIN BY CODE</button>
-                <button className="secondary-button" type="button" disabled={manualRoomCode.length !== 6} onClick={() => onSpectate(rememberName(), manualRoomCode)}>WATCH</button>
-              </div>
-            </>
+            <details className="start-disclosure start-disclosure--profile">
+              <summary>PLAYER HISTORY <span>{statistics.seriesWon} wins / {statistics.validClaims} claims</span></summary>
+              <ProfilePanel statistics={statistics} />
+              {replays.length > 0 && <div className="replay-list"><span>RECENT REPLAYS</span>{replays.slice(0, 3).map((replay) => <button type="button" key={replay.id} onClick={() => onOpenReplay(replay)}>{replay.label}</button>)}</div>}
+            </details>
           )}
         </form>
-        <ProfilePanel statistics={statistics} />
-        {replays.length > 0 && <div className="replay-list"><span>RECENT REPLAYS</span>{replays.slice(0, 3).map((replay) => <button type="button" key={replay.id} onClick={() => onOpenReplay(replay)}>{replay.label}</button>)}</div>}
-        <div className="start-rules" aria-label="Game summary">
-          <span><strong>5 SEC</strong> to claim</span><span><strong>5 MIN</strong> per round</span><span><strong>3-5 ROUNDS</strong> cumulative score</span><span><strong>NO LOGIN</strong> code or link</span>
-        </div>
       </section>
     </main>
   )
